@@ -61,7 +61,7 @@ class User(AbstractUser):
 
 class FarmHand(models.Model):
     """One farmhand can manage multiple farms"""
-    username = models.CharField(max_length=100)
+    username = models.CharField(max_length=100, unique = True)
     phone = models.CharField(max_length=20, blank=True)
     certification_number = models.CharField(max_length=100, unique=True, help_text="EU Organic / USDA / JAS etc.")
 
