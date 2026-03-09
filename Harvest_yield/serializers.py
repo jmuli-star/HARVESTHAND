@@ -39,7 +39,8 @@ class FarmSerializer(serializers.ModelSerializer):
     farmhand_details = serializers.CharField(source='farmhand.__str__', read_only=True)
     class Meta:
         model = Farm
-        fields = [ 'name', 'farmhand_details', 'location', 'gps_coordinates', 'created_at']
+        fields = '__all__'
+        read_only_fields = ['farmhand_details']
 
 
 class TreatmentLogSerializer(serializers.ModelSerializer):

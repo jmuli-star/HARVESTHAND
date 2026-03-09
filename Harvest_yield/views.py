@@ -45,12 +45,15 @@ class FarmViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return [AllowAny()]
         if self.action == 'create':
-            return [IsOwnerOrReadOnly()]
+            return [IsAuthenticated()]
         if self.action in ['update', 'partial_update']:
             return [IsFarmcorrespondentOrHigher()]
         if self.action == 'destory':
             return [IsAdmin()]
         return [IsAuthenticated()]
+    #Error correction on postman -POST
+    def perform_create(self, serializer):
+        serializer.save(farmhand = self.request.user)
     
     # def get_queryset(self):
     #     user = self.request.user
