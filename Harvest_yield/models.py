@@ -38,7 +38,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True, blank = False , null = False)
     Institution_name = models.CharField(max_length= 150, blank = True)
     Institution_correspondent =models.CharField(max_length=150, blank = True)
-    roles = models.CharField(max_length=50 , choices=ROLES, default='user')
+    role = models.CharField(max_length=50 , choices=ROLES, default='user')
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS =[]
     objects = UserManager()
