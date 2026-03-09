@@ -4,14 +4,14 @@ from .models import *
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('id', 'email', 'first_name', 'last_name', 'role', 'is_staff', 'is_superuser', 'date_joined')
+    list_display = ('id', 'email', 'Institution_name', 'Institution_correspondent', 'role', 'is_staff', 'is_superuser', 'date_joined')
     list_filter = ('role', 'is_staff', 'is_superuser')
-    search_fields = ('email', 'first_name', 'last_name')
+    search_fields = ('email', 'Institution_name', 'Institution_correspondent')
     ordering = ('-date_joined',)
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Personal info', {'fields': ('first_name', 'last_name', 'role')}),
+        ('Personal info', {'fields': ('Institution_name', 'Institution_correspondent', 'role')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
     )
     add_fieldsets = (
@@ -20,26 +20,6 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-@admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name')
-    search_fields = ('name',)
-
-@admin.register(Article)
-class ArticleAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'author', 'category', 'status', 'published_at')
-    list_filter = ('status', 'category', 'created_at')
-    search_fields = ('title', 'author__email')
-
-@admin.register(Comment)
-class CommentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'article', 'user', 'created_at')
-    search_fields = ('user__email', 'article__title')
-
-@admin.register(Like)
-class LikeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'article', 'user', 'created_at')
-    search_fields = ('user__email', 'article__title')
     
 admin.site.register(FarmHand)
 
