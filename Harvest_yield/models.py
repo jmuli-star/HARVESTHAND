@@ -2,7 +2,9 @@ from django.db import models
 from django.utils.timezone import now
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
+
 # Create your models here.
+
 class UserManager(BaseUserManager):
     def create_user(self, email, password, **extra_fields):
         if not email:
@@ -24,16 +26,37 @@ class UserManager(BaseUserManager):
         
         return self.create_user(email, password, **extra_fields)
     
-class CustomUser(AbstractUser):
+class User(AbstractUser):
+    ROLES = (
+        ('admin','Admin',),
+        ('farmhand','FarmHand'),
+        ('farmcorrespondent','FarmCorrespondent'),
+        ('farminstitution','FarmInstitution'),
+        ('user','User,'),
+    )
     username = None
-    email = models.EmailField(unique=True)
+    email = models.EmailField(unique=True, blank = False , null = False)
+    Institution_name = models.CharField(max_length= 150, blank = True)
+    Instituition_correspondent =models.CharField(max_length=150, blank = True)
+    roles = models.CharField(max_length=50 , choices=ROLES, default='user')
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = [ ]
+    REQUIRED_FILEDS =[]
     objects = UserManager()
-
+    
     def __str__(self):
         return self.email
     
+    def is_farminstitution_or_higher(self):
+        return self.role in['farminstitution','farmcorrespondent','farmhand','admin']
+    
+    def is_farmcorrespondent_or_higher(self):
+        return self.role in['farmcorrespondent','farmhand','admin']
+    
+    def is_farmhand_or_higher(self):
+        return self.role in['farmhand','admin']
+    
+    def is_admin_or_higher(self):
+        return self.role == 'admin'
 
 
 class FarmHand(models.Model):
