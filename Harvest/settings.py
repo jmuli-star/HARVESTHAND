@@ -137,4 +137,6 @@ SIMPLE_JWT = {
 
 STATIC_URL = 'static/'
 
+AUTH_USER_MODEL = 'Harvest_yield.user'
+
 CORS_ALLOW_ALL_ORIGINS = True

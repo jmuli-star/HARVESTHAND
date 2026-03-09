@@ -32,15 +32,15 @@ class User(AbstractUser):
         ('farmhand','FarmHand'),
         ('farmcorrespondent','FarmCorrespondent'),
         ('farminstitution','FarmInstitution'),
-        ('user','User,'),
+        ('user','User'),
     )
     username = None
     email = models.EmailField(unique=True, blank = False , null = False)
     Institution_name = models.CharField(max_length= 150, blank = True)
-    Instituition_correspondent =models.CharField(max_length=150, blank = True)
+    Institution_correspondent =models.CharField(max_length=150, blank = True)
     roles = models.CharField(max_length=50 , choices=ROLES, default='user')
     USERNAME_FIELD = 'email'
-    REQUIRED_FILEDS =[]
+    REQUIRED_FIELDS =[]
     objects = UserManager()
     
     def __str__(self):
