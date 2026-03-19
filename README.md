@@ -46,10 +46,10 @@ Run the development server
 
 Bash
 npm run dev
-📊 Data Model
+Data Model
 To understand how HarvestHand organizes your farm, refer to the entity relationship:
 
-🤝 Contributing
+Contributing
 We welcome green thumbs and clean code!
 
 Fork the Project.
@@ -62,10 +62,10 @@ Push to the Branch (git push origin feature/AmazingFeature).
 
 Open a Pull Request.
 
-📄 License
-Distributed under the MIT License. See LICENSE for more information.
+ License
+Distributed under the  License. See LICENSE for more information.
 
 📞 Contact
 Project Lead: Your Name - @YourTwitter
 
-Project Link: https://github.com/yourusername/harvest-hand
+Project Link: git@github.com:jmuli-star/HARVESTHAND.git
