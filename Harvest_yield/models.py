@@ -58,7 +58,6 @@ class User(AbstractUser):
     def is_admin_or_higher(self):
         return self.role == 'admin'
 
-
 class FarmHand(models.Model):
     """One farmhand can manage multiple farms"""
     username = models.CharField(max_length=100, unique = True)

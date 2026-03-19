@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'Harvest_yield',
+    'Accounts',
     'rest_framework',
     'corsheaders',
+   
 ]
 
 
