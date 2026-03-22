@@ -1,6 +1,12 @@
 import React from 'react'
-
+import { useNavigate } from 'react-router-dom'
 function Home() {
+  const navigate = useNavigate();
+
+  const goLogin = () =>{
+    navigate("/Login")
+  }
+
   return (
     <>
     <div className="text-center space-y-12">
@@ -11,7 +17,7 @@ function Home() {
       <p className="text-xl text-stone-600 max-w-2xl mx-auto">
         Track growth cycles, manage soil health, and connect with local markets—all from one simple dashboard.
       </p>
-      <button className="mt-8 px-8 py-3 bg-amber-600 text-white rounded-full font-bold hover:bg-amber-700 transition">
+      <button onClick={goLogin} className="mt-8 px-8 py-3 bg-amber-600 text-white rounded-full font-bold hover:bg-amber-700 transition">
         Start Your Harvest
       </button>
     </section>
