@@ -54,6 +54,15 @@ const Navbar = () => {
                             About
                         </Link>
                     </li>
+                      <li className="py-2 md:py-0">
+                        <Link 
+                            to="/axios" 
+                            onClick={() => setIsOpen(false)}
+                            className="hover:text-blue-200 transition-colors"
+                        >
+                            Axios
+                        </Link>
+                    </li>
                     <li className="py-2 md:py-0">
                         <Link 
                             to="/contact" 

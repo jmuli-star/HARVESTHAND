@@ -1,74 +1,143 @@
+import axios from 'axios';
 import React, { useState } from 'react';
 
 
-function Logintoogle() {
-  // 1. Create our 'loggedIn' state, defaulting to false
-  const [loggedIn, setLoggedIn] = useState(false);
 
-  // 2. A helper function to toggle the state back and forth
-  const handleToggle = () => {
-    setLoggedIn((prevState) => !prevState);
+function Logintoogle() {
+  const [isLogin, setIsLogin] = useState(true);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    password2: '',
+    institution_name: '',
+    role: 'farmhand',
+  });
+  const [message, setMessage] = useState('');
+
+  const API_URL = "";
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post('http://127.0.0.1:8000/api/v1/login/', {
+        email: formData.email,
+        password: formData.password,
+      });
+      localStorage.setItem('access_token', res.data.access);
+      localStorage.setItem('refresh_token', res.data.refresh);
+      setMessage("Logged in successfully!");
+    } catch (err) {
+      setMessage("Login failed. Check credentials.");
+    }
+  };
+
+  const handleRegister = async (e) => {
+  e.preventDefault();
+  try {
+    const res = await axios.post('http://127.0.0.1:8000/api/v1/register/', formData);
+    setMessage("Registration successful!");
+  } catch (err) {
+    // Check if the server actually sent a response
+    if (err.response) {
+      console.log("Server Error Data:", err.response.data);
+      setMessage("Server Error: " + (err.response.data.detail || "Check Django terminal"));
+    } else {
+      console.log("Network Error:", err.message);
+      setMessage("Network error or server is down.");
+    }
+  }
+};
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    setMessage("Logged out.");
   };
 
   return (
     <>
-      {/* Full-screen centered background with dark modern theme */}
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-zinc-950 to-black flex items-center justify-center p-6">
-        
-        {/* Main card container */}
-        <div className="w-full max-w-md bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 rounded-3xl shadow-2xl p-10">
-          
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div className="mx-auto w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-              <span className="text-4xl">🔐</span>
-            </div>
-            <h2 className="text-4xl font-bold tracking-tight text-white">Welcome to the App</h2>
-            <p className="text-zinc-400 mt-2 text-lg">Simple toggle demo with Tailwind</p>
-          </div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="bg-white p-8 rounded shadow-md w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          {isLogin ? 'Login to Harvest' : 'Register Account'}
+        </h2>
 
-          {/* Status message with conditional styling */}
-          <div
-            className={`mb-8 p-5 rounded-2xl text-center text-xl font-medium transition-all duration-300 ${
-              loggedIn
-                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                : 'bg-amber-950 text-amber-300 border border-amber-800'
-            }`}
-          >
-            Status:{' '}
-            <span className="font-semibold">
-              {loggedIn ? '✅ You are logged in!' : '🔒 Please log in.'}
-            </span>
-          </div>
+        <form onSubmit={isLogin ? handleLogin : handleRegister} className="space-y-4">
+          <input
+            name="email"
+            type="email"
+            placeholder="Email"
+            className="w-full p-2 border rounded"
+            onChange={handleChange}
+            required
+          />
+          <input
+            name="password"
+            type="password"
+            placeholder="Password"
+            className="w-full p-2 border rounded"
+            onChange={handleChange}
+            required
+          />
 
-          {/* Toggle button with smooth hover & conditional colors */}
-          <button
-            onClick={handleToggle}
-            className={`w-full py-4 rounded-2xl font-semibold text-lg tracking-wide transition-all duration-300 flex items-center justify-center gap-3 shadow-lg active:scale-95 ${
-              loggedIn
-                ? 'bg-red-600 hover:bg-red-700 text-white border border-red-500'
-                : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500'
-            }`}
-          >
-            {loggedIn ? (
-              <>
-                <span>🚪</span> Log Out
-              </>
-            ) : (
-              <>
-                <span>🔑</span> Log In
-              </>
-            )}
+          {!isLogin && (
+            <>
+              <input
+                name="password2"
+                type="password"
+                placeholder="Confirm Password"
+                className="w-full p-2 border rounded"
+                onChange={handleChange}
+                required
+              />
+              <input
+                name="institution_name"
+                type="text"
+                placeholder="Institution Name"
+                className="w-full p-2 border rounded"
+                onChange={handleChange}
+              />
+              <select 
+                name="role" 
+                className="w-full p-2 border rounded"
+                onChange={handleChange}
+                value={formData.role}
+              >
+                <option value="farmhand">FarmHand</option>
+                <option value="farmcorrespondent">FarmCorrespondent</option>
+              </select>
+            </>
+          )}
+
+          <button type="submit" className="w-full bg-green-600 text-white p-2 rounded hover:bg-green-700">
+            {isLogin ? 'Login' : 'Register'}
           </button>
+        </form>
 
-          {/* Subtle footer hint */}
-          <p className="text-center text-zinc-500 text-sm mt-8">
-            Click the button to toggle login state
-          </p>
+        <div className="mt-4 text-center">
+          <button 
+            onClick={() => setIsLogin(!isLogin)} 
+            className="text-blue-600 text-sm underline"
+          >
+            {isLogin ? "Need an account? Register" : "Already have an account? Login"}
+          </button>
         </div>
+
+        <button 
+          onClick={handleLogout} 
+          className="mt-6 w-full text-red-500 text-sm border border-red-500 p-2 rounded"
+        >
+          Logout
+        </button>
+
+        {message && <p className="mt-4 text-center text-sm font-semibold">{message}</p>}
       </div>
-    </>
-  );
+    </div>
+  </>
+  )
 }
 
 export default Logintoogle;
