@@ -12,7 +12,14 @@ from .permissions import *
 
 # Create your views here.
 
+# Harvest_yield/views.py
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import MyTokenObtainPairSerializer # Import your new serializer
+
 class CustomTokenObtainPairView(TokenObtainPairView):
+    # Tell the view to use your email-based serializer
+    serializer_class = MyTokenObtainPairSerializer
+
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
@@ -53,23 +60,23 @@ class FarmViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
     #Error correction on postman -POST
     def perform_create(self, serializer):
-        serializer.save(farmhand = self.request.user)
+        farmhand_profile = FarmHand.objects.get_or_create(user = self.request.user)
+        serializer.save(farmhand = farmhand_profile)
     
-    # def get_queryset(self):
-    #     user = self.request.user
-    #     if not user.is_authenticated:
-    #         return Farm.objects.filter(status= 'farms')
-    #     if user.is_editor_or_higher():
-    #         return Farm.objects.all()
-    #     return Farm.objects.filter(
-    #         django_models.Q(status='farms') | django_models.Q(author=user)
-    #     ).order_by('-created_at') 
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Farm.objects.all()
+        if user.is_farmcorrespondent_or_higher():
+            return Farm.objects.all().order_by('-name')
+        return Farm.objects.filter(farmhand__user = user).order_by('-name')
+       
     
-    # @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    # def like(self, request, pk=None):
-    #     article = self.get_object()
-    #     Like.objects.get_or_create(article=article, user=request.user) 
-    #     return Response({'detail': 'Liked'})
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def like(self, request, pk=None):
+        article = self.get_object()
+        Like.objects.get_or_create(article=article, user=request.user) 
+        return Response({'detail': 'Liked'})
       
     # @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
     # def unlike(self, request, pk=None):
@@ -87,9 +94,9 @@ class UserRoleViewSet(viewsets.ViewSet):
         
         try:
             target_user = User.objects.get(id=user_id)
-            if target_user.is_superadmin() or target_user.is_superuser:
-                return Response({"error": "Cannot modify superadmin"}, status=403)
-            
+            if target_user.is_admin_or_higher(): 
+                return Response({"error": "Cannot modif admin"})
+               
             target_user.role = role
             target_user.save()
             return Response({"detail": f"Role updated to {role}"})

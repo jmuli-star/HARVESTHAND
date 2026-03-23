@@ -130,8 +130,20 @@ REST_FRAMEWORK ={
     ],
 }
 SIMPLE_JWT = {
-    'ACESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days = 7)
+   'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # Fixed typo: ACCESS
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',           # Tells JWT to use 'id' from your User model
+    'USER_ID_CLAIM': 'user_id',
+    
+    # If using newer versions of SimpleJWT, this maps 'email' as the identifier
+    'TOKEN_USER_CLASS': 'Harvest_yield.User',
 }
 
 # Static files (CSS, JavaScript, Images)

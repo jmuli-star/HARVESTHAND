@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.timezone import now
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
+from django.conf import settings
 
 # Create your models here.
 
@@ -36,8 +37,8 @@ class User(AbstractUser):
     )
     username = None
     email = models.EmailField(unique=True, blank = False , null = False)
-    Institution_name = models.CharField(max_length= 150, blank = True)
-    Institution_correspondent =models.CharField(max_length=150, blank = True)
+    institution_name = models.CharField(max_length= 150, blank = True)
+    institution_correspondent =models.CharField(max_length=150, blank = True)
     role = models.CharField(max_length=50 , choices=ROLES, default='user')
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS =[]
@@ -60,13 +61,15 @@ class User(AbstractUser):
 
 class FarmHand(models.Model):
     """One farmhand can manage multiple farms"""
-    username = models.CharField(max_length=100, unique = True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='farmhand', null = True, blank = True)
     phone = models.CharField(max_length=20, blank=True)
     certification_number = models.CharField(max_length=100, unique=True, help_text="EU Organic / USDA / JAS etc.")
 
     def __str__(self):
-        return f"{self.username} {self.certification_number} " 
-
+        if self.user:
+            return f"{self.user.email}({self.certification_number})"
+        return f"Unassigned profile ({self.certification_number})"
+        
 
 class Farm(models.Model):
     name = models.CharField(max_length=200)
@@ -125,13 +128,3 @@ class TreatmentLog(models.Model):
         return f"{self.action_type} on {self.date}"
     
     
-class new_farmhand(models.Model):
-    f_name = models.CharField(max_length=100)
-    s_name = models.CharField(max_length=100)
-    username = models.CharField()
-    certification = models.CharField(max_length=100,  help_text="EU Organic / USDA / JAS etc.")
-    phone = models.CharField(max_length=20, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f'{self.f_name} {self.certification}'
