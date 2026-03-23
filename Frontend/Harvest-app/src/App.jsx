@@ -6,8 +6,14 @@ import Forms from './Pages/Forms'
 import Contactus from './Pages/Contactus'
 import Aboutus from './Pages/Aboutus'
 import Axiosfetch from './Components/Axiosfetch'
+import ProtectedRoute from './Components/ProtectRoute'
+import UserDash from './Pages/UserDash'
+import FarminstitutDash from './Pages/FarminstitutDash'
+import FarmhandDash from './Pages/FarmhandDash'
+import AdminDash from './Pages/AdminDash'
 import Navbar from './Components/Navbar'
 import { Route,Routes } from 'react-router-dom'
+import FarmcorrsDash from './Pages/FarmcorrsDash'
 function App() {
   
 
@@ -19,12 +25,61 @@ function App() {
     <Route path='/about' element={<Aboutus/>}/>
     <Route path='/login' element={<Logintoogle/>}/>
     <Route path='/axios' element={<Axiosfetch/>}/>
-    </Routes>
-  
-   
 
-  
-    
+    {/* 1. Farmhand */}
+  <Route 
+    path="/dashboard/farmhand" 
+    element={
+      <ProtectedRoute allowedRoles={['FarmHand']}>
+        <FarmhandDash />
+      </ProtectedRoute>
+    } 
+  />
+
+  {/* 2. Correspondent - Change this to be unique */}
+  <Route 
+    path="/dashboard/correspondent" 
+    element={
+      <ProtectedRoute allowedRoles={['FarmCorrespondent']}>
+        <FarmcorrsDash />
+      </ProtectedRoute>
+    } 
+  /> 
+
+  {/* 3. Institution - Unique Path */}
+  <Route 
+    path="/dashboard/institution" 
+    element={
+      <ProtectedRoute allowedRoles={['FarmInstitution']}>
+        <FarminstitutDash />
+      </ProtectedRoute>
+    } 
+  />
+
+  {/* 4. Admin - Unique Path */}
+  <Route 
+    path="/dashboard/admin" 
+    element={
+      <ProtectedRoute allowedRoles={['Admin']}>
+        <AdminDash />
+      </ProtectedRoute>
+    } 
+  />
+
+  {/* 5. General User - Unique Path */}
+  <Route 
+    path="/dashboard/user" 
+    element={
+      <ProtectedRoute allowedRoles={['User']}>
+        <UserDash />
+      </ProtectedRoute>
+    } 
+  />
+
+  {/* IMPORTANT: Add the Unauthorized route to fix your previous error */}
+  <Route path="/unauthorized" element={<div className="p-10 text-red-500">Access Denied</div>} />
+    </Routes>
+
     </>
   )
 }
