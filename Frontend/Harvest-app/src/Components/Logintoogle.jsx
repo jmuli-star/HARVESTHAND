@@ -19,7 +19,15 @@ function Logintoogle() {
   };
 
   // Helper function to handle role-based navigation
- 
+  // Move this outside/above handleLogin
+  const redirectUser = (role) => {
+    if (role === 'farmhand') navigate('/dashboard/farmhand');
+    else if (role === 'farmcorrespondent') navigate('/dashboard/farmcorrespondent');
+    else if (role === 'farminstitution') navigate('/dashboard/farminstitution');
+    else if (role === 'admin') navigate('/dashboard/admin');
+    else navigate('/dashboard/user');
+  };
+  
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -34,13 +42,7 @@ function Logintoogle() {
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
 
-    const redirectUser = (role) => {
-    if (role === 'farmhand') navigate('/dashboard/farmhand');
-    else if (role === 'farmcorrespondent') navigate('/dashboard/correspondent');
-    else if (role === 'farminstitution') navigate('/dashboard/institution');
-    else if (role === 'admin') navigate('/dashboard/admin');
-    else navigate('/dashboard/user');
-  };
+   
 
       setMessage("Logged in successfully!");
       redirectUser(res.data.user.role);

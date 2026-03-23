@@ -54,7 +54,7 @@ const Navbar = () => {
                             About
                         </Link>
                     </li>
-                      <li className="py-2 md:py-0">
+                      {/* <li className="py-2 md:py-0">
                         <Link 
                             to="/axios" 
                             onClick={() => setIsOpen(false)}
@@ -62,7 +62,7 @@ const Navbar = () => {
                         >
                             Axios
                         </Link>
-                    </li>
+                    </li> */}
                     <li className="py-2 md:py-0">
                         <Link 
                             to="/contact" 

@@ -35,49 +35,51 @@ function App() {
       </ProtectedRoute>
     } 
   />
+  {/* 2. Correspondent - UPDATED PATH TO MATCH ERROR */}
+        <Route 
+          path="/dashboard/farmcorrespondent" 
+          element={
+            <ProtectedRoute allowedRoles={['FarmCorrespondent']}>
+              <FarmcorrsDash />
+            </ProtectedRoute>
+          } 
+        /> 
 
-  {/* 2. Correspondent - Change this to be unique */}
-  <Route 
-    path="/dashboard/correspondent" 
-    element={
-      <ProtectedRoute allowedRoles={['FarmCorrespondent']}>
-        <FarmcorrsDash />
-      </ProtectedRoute>
-    } 
-  /> 
+        {/* 3. Institution */}
+        <Route 
+          path="/dashboard/farminstitution" 
+          element={
+            <ProtectedRoute allowedRoles={['FarmInstitution']}>
+              <FarminstitutDash />
+            </ProtectedRoute>
+          } 
+        />
 
-  {/* 3. Institution - Unique Path */}
-  <Route 
-    path="/dashboard/institution" 
-    element={
-      <ProtectedRoute allowedRoles={['FarmInstitution']}>
-        <FarminstitutDash />
-      </ProtectedRoute>
-    } 
-  />
+        {/* 4. Admin */}
+        <Route 
+          path="/dashboard/admin" 
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <AdminDash />
+            </ProtectedRoute>
+          } 
+        />
 
-  {/* 4. Admin - Unique Path */}
-  <Route 
-    path="/dashboard/admin" 
-    element={
-      <ProtectedRoute allowedRoles={['Admin']}>
-        <AdminDash />
-      </ProtectedRoute>
-    } 
-  />
+        {/* 5. General User */}
+        <Route 
+          path="/dashboard/user" 
+          element={
+            <ProtectedRoute allowedRoles={['User']}>
+              <UserDash />
+            </ProtectedRoute>
+          } 
+        />
 
-  {/* 5. General User - Unique Path */}
-  <Route 
-    path="/dashboard/user" 
-    element={
-      <ProtectedRoute allowedRoles={['User']}>
-        <UserDash />
-      </ProtectedRoute>
-    } 
-  />
+        {/* Catch-all for Unauthorized or Not Found */}
+        <Route path="/unauthorized" element={<div className="p-10 text-red-500 font-bold">Access Denied: You do not have permission to view this page.</div>} />
+        <Route path="*" element={<div className="p-10 text-slate-500">404: Page Not Found</div>} />
+    
 
-  {/* IMPORTANT: Add the Unauthorized route to fix your previous error */}
-  <Route path="/unauthorized" element={<div className="p-10 text-red-500">Access Denied</div>} />
     </Routes>
 
     </>

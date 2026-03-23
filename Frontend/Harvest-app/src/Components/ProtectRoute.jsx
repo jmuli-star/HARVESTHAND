@@ -3,33 +3,32 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const token = localStorage.getItem('access_token');
-  const userRole = localStorage.getItem('user_role');
+  const userRole = localStorage.getItem('user_role'); // Ensure this is exactly what's in DB
   const location = useLocation();
 
-  // Debugging logs (Check your browser console!)
-  console.log("--- Protected Route Check ---");
-  console.log("Token exists:", !!token);
-  console.log("Stored User Role:", userRole);
-  console.log("Required Roles for this path:", allowedRoles);
+  // Debugging logs - Watch these in the Chrome Console!
+  console.log("--- Security Check ---");
+  console.log("Path:", location.pathname);
+  console.log("Role in Storage:", userRole);
+  console.log("Allowed for this Page:", allowedRoles);
 
-  // 1. If no token, the user is not logged in
+  // 1. Authentication Check
   if (!token) {
-    // We save the current location so we can redirect them back after they login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 2. Role Authorization Check
-  // We use .toLowerCase() to prevent "Access Denied" caused by simple typing cases
+  // 2. Authorization Check
+  // Note: We trim and lowercase to be extra safe
   const isAuthorized = allowedRoles.some(role => 
-    role.toLowerCase() === (userRole || "").toLowerCase()
+    role.trim().toLowerCase() === (userRole || "").trim().toLowerCase()
   );
 
-  if (allowedRoles && !isAuthorized) {
-    console.error("ACCESS DENIED: Role mismatch.");
+  if (!isAuthorized) {
+    console.error("⛔ ACCESS DENIED: User role does not match page requirements.");
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // 3. If all checks pass, render the dashboard
+  // 3. Success
   return children;
 };
 
