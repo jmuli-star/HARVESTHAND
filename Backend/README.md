@@ -20,6 +20,7 @@ Backend	Node.js / Express
 Database	PostgreSQL + PostGIS (for mapping)
 Mobile	React Native
 State	Redux Toolkit
+
 🏁 Getting Started
 Prerequisites
 Node.js (v18.0.0 or higher)
@@ -30,7 +31,7 @@ Installation
 Clone the repository
 
 Bash
-git clone https://github.com/yourusername/harvest-hand.git
+git clone https://github.com/jmuli-star/HARVESTHAND.git
 cd harvest-hand
 Install dependencies
 
@@ -66,6 +67,6 @@ Open a Pull Request.
 Distributed under the  License. See LICENSE for more information.
 
 📞 Contact
-Project Lead: Your Name - @YourTwitter
+Project Lead: Joseph Musilu - @Bipolarj
 
 Project Link: git@github.com:jmuli-star/HARVESTHAND.git
