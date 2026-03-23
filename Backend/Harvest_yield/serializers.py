@@ -3,16 +3,29 @@ from .models import User, FarmHand, Farm, Batch, TreatmentLog
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-
 User = get_user_model()
 
+# <--- ADDED: Specialized Serializer for Admin Dashboard Stats --->
+class DashboardStatsSerializer(serializers.Serializer):
+    """
+    This serializer doesn't map to a single model; 
+    it structures the aggregated data from our UserManager.
+    """
+    total_users = serializers.IntegerField()
+    admin_count = serializers.IntegerField()
+    farmhand_count = serializers.IntegerField()
+    correspondent_count = serializers.IntegerField()
+    institution_count = serializers.IntegerField()
+    recent_growth = serializers.IntegerField()
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    # This tells the login system: "Use the 'email' key from JSON as the username"
     username_field = 'email' 
 
     def validate(self, attrs):
-        # This ensures 'email' is passed to the authentication backend
         data = super().validate(attrs)
+        # Add custom claims to the JWT token response if needed
+        data['role'] = self.user.role
+        data['email'] = self.user.email
         return data
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -23,14 +36,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['email', 'password', 'password2', 'institution_name', 'institution_correspondent', 'role']
         extra_kwargs = {'password': {'write_only': True}}
 
-    # FIX: These methods must be aligned with 'class Meta', NOT inside it!
     def validate(self, data):
         if data.get('password') != data.get('password2'):
             raise serializers.ValidationError({'password': 'passwords do not match'})
         return data
 
     def create(self, validated_data):
-        # Now this will actually run and remove password2
         validated_data.pop('password2')
         user = User.objects.create_user(**validated_data)
         return user
@@ -38,8 +49,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        # FIX: Changed to lowercase to match your models.py
-        fields = ['id', 'email', 'institution_name', 'institution_correspondent', 'role']
+        fields = ['id', 'email', 'institution_name', 'institution_correspondent', 'role', 'date_joined']
         read_only_fields = fields
 
 class FarmHandSerializer(serializers.ModelSerializer):
@@ -47,21 +57,19 @@ class FarmHandSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FarmHand
-        # FIX: Removed 'username' as it's not in your FarmHand model
-        fields = ['email', 'phone', 'certification_number']
+        fields = ['id', 'email', 'phone', 'certification_number']
 
 class FarmSerializer(serializers.ModelSerializer):
-    # FIX: Corrected typo 'eamil' to 'email'
     farmhand_details = serializers.ReadOnlyField(source='farmhand.user.email')
 
     class Meta:
         model = Farm
-        fields = ['id', 'name', 'farmhand_details', 'location']
+        fields = ['id', 'name', 'farmhand_details', 'location', 'gps_coordinates']
 
 class TreatmentLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = TreatmentLog
-        fields = ['batch', 'date', 'action_type', 'product_used', 'notes']
+        fields = ['id', 'batch', 'date', 'action_type', 'product_used', 'notes']
 
 class BatchSerializer(serializers.ModelSerializer):
     farm_name = serializers.ReadOnlyField(source='farm.name')

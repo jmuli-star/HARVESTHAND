@@ -16,6 +16,20 @@ from .permissions import *
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import MyTokenObtainPairSerializer # Import your new serializer
 
+class AdminDashboardStatsView(APIView):
+    """
+    Logic to provide the 'Total Users' and role-based counts 
+    to the Admin Dash cards in one single request.
+    """
+    permission_classes = [IsAdminUserRole] # Using Part 3 logic
+
+    def get(self, request):
+        # Calls the logic from the UserManager in Part 1
+        stats = User.objects.get_dashboard_stats()
+        # Serializes the dictionary using Part 2
+        serializer = DashboardStatsSerializer(stats)
+        return Response(serializer.data)
+    
 class CustomTokenObtainPairView(TokenObtainPairView):
     # Tell the view to use your email-based serializer
     serializer_class = MyTokenObtainPairSerializer
@@ -55,8 +69,8 @@ class FarmViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         if self.action in ['update', 'partial_update']:
             return [IsFarmcorrespondentOrHigher()]
-        if self.action == 'destory':
-            return [IsAdmin()]
+        if self.action == 'destroy':
+            return [IsAdminUserRole()]
         return [IsAuthenticated()]
     #Error correction on postman -POST
     def perform_create(self, serializer):
@@ -85,7 +99,7 @@ class FarmViewSet(viewsets.ModelViewSet):
     #     return Response({'detail': 'unLiked'})   
 
 class UserRoleViewSet(viewsets.ViewSet):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminUserRole]
     
     @action(detail=False, methods=['patch'], url_path='assign-role/(?P<user_id>\d+)/(?P<role>\w+)')
     def assign_role(self, request, user_id, role):
@@ -120,4 +134,4 @@ class UserRoleViewSet(viewsets.ViewSet):
 class UserListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserListSerializer
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAdminUserRole]

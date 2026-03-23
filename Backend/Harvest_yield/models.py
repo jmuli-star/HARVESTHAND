@@ -1,8 +1,11 @@
 from django.db import models
-from django.utils.timezone import now
+from django.utils.timezone import now 
+from django.utils import timezone  # ADD THIS
+from datetime import timedelta
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
 from django.conf import settings
+from django.db.models import Count , Q  #counting logic
 
 # Create your models here.
 
@@ -26,7 +29,31 @@ class UserManager(BaseUserManager):
             raise ValueError('super user must have is_super true')
         
         return self.create_user(email, password, **extra_fields)
+    #admin dashboard stats
+    def get_dashboard_stats(self):
+        """
+        One-hit database query to get all counts for the Admin Control Panel.
+        This is significantly faster than running 5 separate .count() queries.
+        """
+        return self.aggregate(
+            total_users = Count('id'),
+            admin_count = Count('id' , filter = Q(role ='admin')),
+            farmhand_count=Count('id', filter=Q(role='farmhand')),
+            correspondent_count=Count('id', filter=Q(role='farmcorrespondent')),
+            institution_count=Count('id', filter=Q(role='farminstitution')),
+            # Logic: Users created in the last 24 hours (example of growth metric)
+            recent_growth=Count('id', filter=Q(date_joined__gte=now().date()))
+        )
     
+        # return {
+        #     'total_users': self.count(),
+        #     'admin_count': self.filter(role='admin').count(),
+        #     'farmhand_count': self.filter(role='farmhand').count(),
+        #     'correspondent_count': self.filter(role='farmcorrespondent').count(),
+        #     'institution_count': self.filter(role='farminstitution').count(),
+        #     'recent_growth': self.filter(date_joined__gte=timezone.now() - timedelta(days=1)).count(),
+        # }
+        
 class User(AbstractUser):
     ROLES = (
         ('admin','Admin',),
@@ -43,6 +70,7 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS =[]
     objects = UserManager()
+    
     
     def __str__(self):
         return self.email

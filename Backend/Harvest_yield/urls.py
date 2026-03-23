@@ -12,6 +12,9 @@ router.register(r'users', UserListViewSet, basename='user_list')
 urlpatterns = [
     # Router URLs
     path('', include(router.urls)),
+    
+    #admin dashboard statistics logic
+    path('admin/stats/', AdminDashboardStatsView.as_view(), name ='admin_dashboard_stats'),
 
     # Authentication & Registration (Standard APIViews)
     path('register/', RegisterView.as_view(), name='register'),
