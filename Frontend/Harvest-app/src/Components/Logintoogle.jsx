@@ -19,7 +19,6 @@ function Logintoogle() {
   };
 
   // Helper function to handle role-based navigation
-  // Move this outside/above handleLogin
   const redirectUser = (role) => {
     if (role === 'farmhand') navigate('/dashboard/farmhand');
     else if (role === 'farmcorrespondent') navigate('/dashboard/farmcorrespondent');
