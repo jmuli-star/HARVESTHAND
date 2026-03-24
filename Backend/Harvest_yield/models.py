@@ -1,6 +1,6 @@
 from django.db import models
 from django.utils.timezone import now 
-from django.utils import timezone  # ADD THIS
+from django.utils import timezone  
 from datetime import timedelta
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager

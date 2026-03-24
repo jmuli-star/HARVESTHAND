@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'Harvest_yield',
+    'TaskManagement',
     'Accounts',
     'rest_framework',
     'corsheaders',
