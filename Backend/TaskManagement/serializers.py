@@ -45,12 +45,29 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 # --- 3. REPORT SERIALIZER ---
+from rest_framework import serializers
+from .models import Report, Batch # Ensure these are imported correctly
+from django.contrib.auth import get_user_model
+
 class ReportSerializer(serializers.ModelSerializer):
     """
-    Logic: Handles complex multi-role feedback loops.
-    Captures 'target_role' automatically to ensure the report context 
-    is preserved even if a user's role changes in the future.
+    Logic: Link harvest batches to reports with null-safety checks.
+    Uses PrimaryKeyRelatedField for the batch to ensure valid database linking.
     """
+    # Exposing the batch relationship explicitly
+    # allow_null=True ensures that if no batch is sent, it saves as None/Null
+    batch = serializers.PrimaryKeyRelatedField(
+        queryset=Batch.objects.all(), 
+        allow_null=True, 
+        required=False
+    )
+
+    # ReadOnlyFields to send descriptive batch info to the frontend
+    # If self.batch is None, these will return None instead of crashing
+    batch_crop = serializers.ReadOnlyField(source='batch.crop_name')
+    batch_quantity = serializers.ReadOnlyField(source='batch.quantity_kg')
+    batch_destination = serializers.ReadOnlyField(source='batch.destination')
+
     sender_email = serializers.ReadOnlyField(source='sender.email')
     sender_role = serializers.ReadOnlyField(source='sender.role')
     
@@ -63,18 +80,24 @@ class ReportSerializer(serializers.ModelSerializer):
             'id', 
             'sender', 'sender_email', 'sender_role',
             'recipient', 'recipient_email', 'recipient_role',
+            'batch', 'batch_crop', 'batch_quantity', 'batch_destination',
             'target_role', 'title', 'message', 
             'is_complete', 'feedback', 
             'created_at', 'updated_at'
         ]
-        # Logic: 'sender' and 'target_role' are handled by backend logic (Model .save())
         read_only_fields = ['sender', 'target_role', 'created_at', 'updated_at']
 
     def validate(self, data):
         """
-        Logic: Optional workflow safety check.
-        Ensures a user isn't sending a report to themselves.
+        Logic: 
+        1. Self-reporting check.
+        2. Ensures batch exists if provided (handled by PrimaryKeyRelatedField).
         """
-        if self.context['request'].user == data.get('recipient'):
-            raise serializers.ValidationError("You cannot send a report/task to yourself.")
+        request = self.context.get('request')
+        recipient = data.get('recipient')
+        
+        # Bug fix: Ensure recipient is not None before comparing
+        if request and recipient and request.user == recipient:
+            raise serializers.ValidationError({"recipient": "You cannot send a report/task to yourself."})
+            
         return data

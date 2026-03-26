@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from Harvest_yield.models import Batch
 
 # --- Logic: Management App for Tasks and Communication ---
 class Task(models.Model):
@@ -47,10 +48,19 @@ class Report(models.Model):
         related_name='received_reports'
     )
 
-    # OMISSION FIX: Storing the role context as a field is better for 
-    # historical records (if a user changes roles later).
-    target_role = models.CharField(max_length=50, blank=True)
+    # --- NEW: BATCH LINKAGE ---
+    # This creates the physical link between a report and a harvest batch.
+    # SET_NULL means if a batch is deleted, the report remains for history.
+    batch = models.ForeignKey(
+        'Harvest_yield.Batch', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='batch_reports'
+    )
+    # --------------------------
 
+    target_role = models.CharField(max_length=50, blank=True)
     title = models.CharField(max_length=200, help_text="e.g., User1 - perform planting")
     message = models.TextField()
     is_complete = models.BooleanField(default=False)
@@ -59,14 +69,14 @@ class Report(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # BUG FIX: In Part 1, we set 'username = None'. 
-    # If your Report __str__ tries to access self.sender.role, it works, 
-    # but ensure the target_role logic is also visible here.
     def __str__(self):
-        return f"{self.title} | {self.sender.email} to {self.recipient.email}"
+        # Added batch ID to string representation for easier debugging
+        batch_info = f" | Batch: {self.batch.id}" if self.batch else ""
+        return f"{self.title} | {self.sender.email} to {self.recipient.email}{batch_info}"
 
-    # WORKFLOW LOGIC: Automatically populate target_role on save
     def save(self, *args, **kwargs):
-        if not self.target_role:
-            self.target_role = self.recipient.role
+        # Auto-populate target_role logic remains intact
+        if not self.target_role and self.recipient:
+            # Assuming your user model has a 'role' field
+            self.target_role = getattr(self.recipient, 'role', 'Unknown')
         super().save(*args, **kwargs)
