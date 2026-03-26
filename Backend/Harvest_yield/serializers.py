@@ -70,15 +70,15 @@ class TreatmentLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = TreatmentLog
         fields = ['id', 'batch', 'date', 'action_type', 'product_used', 'notes']
+        
+# Harvest_yield/serializers.py
 
 class BatchSerializer(serializers.ModelSerializer):
-    farm_name = serializers.ReadOnlyField(source='farm.name')
-    treatment_logs = TreatmentLogSerializer(many=True, read_only=True)
-
     class Meta:
         model = Batch
         fields = [
-            'id', 'farm_name', 'crop_name', 'variety', 
-            'planted_date', 'harvest_date', 'quantity_kg', 
-            'destination', 'qr_generated', 'created_at', 'treatment_logs'
+            'id', 'crop_name', 'quantity_kg', 'destination', 
+            'farm', 'farmhand', 'created_at'
         ]
+        # These are read-only because they are linked automatically by the backend
+        read_only_fields = ['id', 'farm', 'farmhand', 'created_at']

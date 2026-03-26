@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import viewsets ,status
+from rest_framework import viewsets ,status , generics, permissions
 from django.db import models as django_models
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -135,3 +135,37 @@ class UserListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserListSerializer
     permission_classes = [IsAdminUserRole]
+
+# Harvest_yield/views.py
+
+class BatchListCreateView(generics.ListCreateAPIView):
+    queryset = Batch.objects.all()
+    serializer_class = BatchSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    # Harvest_yield/views.py
+    # Harvest_yield/views.py
+
+def perform_create(self, serializer):
+    from .models import FarmHand, Farm
+    
+    # 1. Find the FarmHand profile for the logged-in user
+    farmhand_profile = FarmHand.objects.filter(user=self.request.user).first()
+    
+    if not farmhand_profile:
+        # If the user has no profile, the database will reject 'farm_id' as null.
+        # We should raise a clear error for the frontend.
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({"detail": "You do not have a FarmHand profile assigned to you."})
+
+    # 2. Find the Farm this hand works for
+    # Adjust this filter based on how your Farm/FarmHand models are linked
+    farm = Farm.objects.filter(farmhand=farmhand_profile).first()
+    
+    if not farm:
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({"detail": "You are not assigned to a specific Farm yet."})
+
+    # 3. Save everything together
+    # This ensures farm_id and farmhand_id are NOT null
+    serializer.save(farmhand=farmhand_profile, farm=farm)

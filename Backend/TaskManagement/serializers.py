@@ -24,6 +24,7 @@ class TaskSerializer(serializers.ModelSerializer):
     creator_email = serializers.ReadOnlyField(source='creator.email')
     creator_name = serializers.ReadOnlyField(source='creator.first_name')
     creator_role = serializers.ReadOnlyField(source='creator.role')
+    batch_name = serializers.ReadOnlyField(source='batch.crop_name') # Quick reference
     
     # Lookups for the 'Worker' (Recipient)
     assigned_to_email = serializers.ReadOnlyField(source='assigned_to.email')
@@ -37,7 +38,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'creator', 'creator_email', 'creator_name', 'creator_role',
             'assigned_to', 'assigned_to_email', 'assigned_to_name', 'assigned_to_role',
             'title', 'description', 'category', 'is_complete', 
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'batch_name'
         ]
         # 'creator' is set in views.py perform_create()
         read_only_fields = ['creator', 'created_at', 'updated_at']

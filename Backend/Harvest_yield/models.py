@@ -113,10 +113,11 @@ class Farm(models.Model):
 class Batch(models.Model):
     """Every harvest batch = unique UUID + QR"""
  
-    farm = models.ForeignKey(Farm, on_delete=models.PROTECT, related_name='batches')
+    farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='farm_batches', null= True, blank= True)
+    farmhand = models.ForeignKey(FarmHand, on_delete = models.CASCADE, null = True , blank = True)
     crop_name = models.CharField(max_length=150, help_text="e.g. Heirloom Cherry Tomatoes")
     variety = models.CharField(max_length=100, blank=True)
-    planted_date = models.DateField()
+    planted_date = models.DateField(null = True, blank = True)
     harvest_date = models.DateField(null=True, blank=True)
     quantity_kg = models.DecimalField(max_digits=8, decimal_places=2)
     destination = models.CharField(max_length=200, blank=True, help_text="Restaurant name or Export buyer")

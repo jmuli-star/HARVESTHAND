@@ -15,6 +15,7 @@ urlpatterns = [
     
     #admin dashboard statistics logic
     path('admin/stats/', AdminDashboardStatsView.as_view(), name ='admin_dashboard_stats'),
+    path('batches/', BatchListCreateView.as_view(), name ='batch_list_create'),
 
     # Authentication & Registration (Standard APIViews)
     path('register/', RegisterView.as_view(), name='register'),
