@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { 
   Users, 
   Map, 
@@ -9,148 +10,168 @@ import {
   ArrowRight, 
   Filter,
   MoreHorizontal,
-  MailWarning
+  MailWarning,
+  Circle,
+  CheckCircle2,
+  Inbox
 } from 'lucide-react';
 
 function FarmcorrsDash() {
-  const pendingApprovals = [
-    { id: 1, farm: 'North Valley', hand: 'John Doe', type: 'Yield Log', date: '2h ago' },
-    { id: 2, farm: 'Green Plateau', hand: 'Jane Smith', type: 'Pest Report', date: '5h ago' },
-    { id: 3, farm: 'Riverside', hand: 'Mike Ross', type: 'Asset Repair', date: 'Yesterday' },
-  ];
+  const [tasks, setTasks] = useState([]);
+  const [reports, setReports] = useState([]); // Logic: Inbox for incoming reports
+  const [loading, setLoading] = useState(true);
+  const [userInfo, setUserInfo] = useState({ name: 'Correspondent', role: 'Staff' });
+
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // Logic: Fetch Tasks AND Reports simultaneously
+      const [taskRes, reportRes] = await Promise.all([
+        axios.get('http://127.0.0.1:8000/api/v1/management/tasks/', { headers }),
+        axios.get('http://127.0.0.1:8000/api/v1/management/reports/', { headers })
+      ]);
+      
+      setTasks(taskRes.data);
+      setReports(reportRes.data);
+    } catch (err) {
+      console.error("Error fetching hub data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser);
+        setUserInfo({
+          name: parsed.first_name || parsed.email.split('@')[0],
+          role: parsed.role
+        });
+      } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  const completedCount = tasks.filter(t => t.is_complete).length;
+  const completionRate = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 lg:p-10 text-slate-900">
       <div className="max-w-7xl mx-auto">
         
-        {/* Header: Coordination Hub */}
+        {/* Header */}
         <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">Correspondent Hub</h1>
-            <p className="text-slate-500 font-medium italic">Managing 3 Sectors • 18 Personnel Active</p>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 capitalize">
+              Welcome, <span className="text-indigo-600">{userInfo.name}</span>
+            </h1>
+            <p className="text-slate-500 font-medium italic">
+              {today} • {reports.length} Reports awaiting review
+            </p>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
-              <Filter size={18} /> Filter Sectors
-            </button>
-            <button className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200">
+            <button className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md">
               <MessageSquare size={18} /> Broadcast Alert
             </button>
           </div>
         </header>
 
-        {/* Quick Stats: Team & Field Status */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-            <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl"><Users size={28} /></div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Team Active</p>
-              <p className="text-2xl font-bold">14 / 18</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-            <div className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl"><CheckCircle size={28} /></div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tasks Verified</p>
-              <p className="text-2xl font-bold">88%</p>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-5">
-            <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl"><Clock size={28} /></div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Avg. Response</p>
-              <p className="text-2xl font-bold">1.2 hrs</p>
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Main Content: Approval Queue */}
+          {/* Main Content: Task Queue */}
           <div className="lg:col-span-8 space-y-8">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white">
+              <div className="p-6 border-b border-slate-50 flex justify-between items-center">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                   <Layers size={20} className="text-indigo-600" />
-                  Review Queue
+                  Assignment Oversight
                 </h2>
-                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-black uppercase tracking-widest">
-                  3 Actions Required
-                </span>
               </div>
               <div className="divide-y divide-slate-50">
-                {pendingApprovals.map((item) => (
+                {loading ? (
+                    <div className="p-10 text-center text-slate-400 font-bold tracking-widest">LOADING FIELD DATA...</div>
+                ) : tasks.map((item) => (
                   <div key={item.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
                     <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold uppercase text-xs">
-                        {item.hand.split(' ').map(n => n[0]).join('')}
-                      </div>
+                      {item.is_complete ? <CheckCircle2 className="text-emerald-500" /> : <Circle className="text-slate-200" />}
                       <div>
-                        <p className="font-bold text-slate-800">{item.type}</p>
-                        <p className="text-sm text-slate-500">{item.hand} • <span className="font-bold">{item.farm}</span></p>
+                        <p className={`font-bold ${item.is_complete ? 'text-slate-400' : 'text-slate-800'}`}>{item.title}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                          Assigned To: {item.assigned_to_email.split('@')[0]}
+                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400 font-medium mr-4">{item.date}</span>
-                      <button className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold hover:bg-emerald-100">Approve</button>
-                      <button className="p-2 text-slate-300 hover:text-slate-500"><MoreHorizontal size={20}/></button>
+                    <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200">Manage</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Visual Stats */}
+            <div className="bg-slate-900 rounded-3xl p-8 text-white relative overflow-hidden">
+              <h2 className="text-2xl font-bold mb-4">Field Efficiency</h2>
+              <div className="flex gap-6 mt-2 relative z-10">
+                <div className="flex-1">
+                  <p className="text-slate-400 text-xs mb-2 uppercase font-black">Success Rate</p>
+                  <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-500" style={{ width: `${completionRate}%` }}></div>
+                  </div>
+                </div>
+              </div>
+              <Map size={120} className="absolute -bottom-5 -right-5 text-white/5 -rotate-12" />
+            </div>
+          </div>
+
+          {/* Sidebar: NEW FIELD INBOX (Replaced Urgent Reports) */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
+              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <Inbox size={20} className="text-indigo-600" />
+                Field Hand Inbox
+              </h3>
+              
+              <div className="space-y-4">
+                {reports.length === 0 ? (
+                  <p className="text-center py-6 text-slate-400 text-sm italic">No reports from farmhands.</p>
+                ) : reports.map((report) => (
+                  <div key={report.id} className="p-4 bg-indigo-50/30 rounded-2xl border border-indigo-100 group hover:border-indigo-300 transition-all">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-sm font-black text-indigo-900">{report.title}</p>
+                      <span className="text-[9px] bg-white px-2 py-0.5 rounded shadow-sm font-bold text-indigo-400 uppercase">
+                        {report.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 line-clamp-2 mb-3 leading-relaxed">
+                      {report.message}
+                    </p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-indigo-400">
+                        From: {report.sender_email?.split('@')[0] || "Farmhand"}
+                      </span>
+                      <button className="flex items-center gap-1 text-[10px] font-black uppercase text-indigo-600 group-hover:translate-x-1 transition-transform">
+                        Add Feedback <ArrowRight size={12}/>
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Field Sector Map Overview */}
-            <div className="bg-slate-900 rounded-3xl p-8 text-white relative overflow-hidden min-h-[200px]">
-              <div className="relative z-10">
-                <h3 className="text-indigo-400 font-black text-xs uppercase tracking-widest mb-2">Live Status</h3>
-                <h2 className="text-2xl font-bold mb-4">Sector Distribution</h2>
-                <div className="flex gap-6 mt-6">
-                  <div className="flex-1">
-                    <p className="text-slate-400 text-xs mb-1">North Plot</p>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 w-[70%]"></div>
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-slate-400 text-xs mb-1">Highland</p>
-                    <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 w-[95%]"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <Map size={150} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12" />
-            </div>
-          </div>
-
-          {/* Sidebar: Coordination Feed */}
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm">
-              <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <MailWarning size={20} className="text-rose-500" />
-                Urgent Reports
+            <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-100">
+              <h3 className="font-bold mb-2 flex items-center gap-2">
+                <Users size={18}/> Team Briefing
               </h3>
-              <div className="space-y-6">
-                <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
-                  <p className="text-sm font-bold text-rose-800 mb-1">Low Moisture Alert</p>
-                  <p className="text-xs text-rose-600 leading-relaxed mb-3">Reported by David (North Plot). Sensor at 18%.</p>
-                  <button className="flex items-center gap-1 text-[10px] font-black uppercase text-rose-700 hover:underline">
-                    Dispatch Team <ArrowRight size={12}/>
-                  </button>
-                </div>
-                <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
-                  <p className="text-sm font-bold text-amber-800 mb-1">Asset Down</p>
-                  <p className="text-xs text-amber-600 leading-relaxed">Tractor A1 needs fuel delivery in Sector 2.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200">
-              <h3 className="font-bold mb-2">Team Sync</h3>
-              <p className="text-indigo-100 text-sm mb-6 leading-relaxed">Last global briefing was at 06:00 AM today.</p>
-              <button className="w-full bg-white text-indigo-700 font-bold py-3 rounded-xl hover:bg-indigo-50 transition-all text-sm">
-                Schedule Meeting
+              <p className="text-indigo-100 text-xs mb-6">Coordinate with your farmhands on reported issues.</p>
+              <button className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold py-3 rounded-xl transition-all text-sm">
+                Open Messenger
               </button>
             </div>
           </div>

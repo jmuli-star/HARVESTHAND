@@ -1,129 +1,148 @@
-import React from 'react';
-import { 
-  CheckCircle2, 
-  Circle, 
-  AlertTriangle, 
-  Droplets, 
-  ThermometerSun, 
-  ClipboardList, 
-  Plus, 
-  Wind,
-  Tractor,
-  TestTube2
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { AlertTriangle, Send, X, UserCheck, ChevronDown } from 'lucide-react';
 
 function FarmhandDash() {
-  // Mock data for current tasks
-  const tasks = [
-    { id: 1, task: 'Irrigation Check - Sector 4', priority: 'High', status: 'Pending' },
-    { id: 2, task: 'Fertilizer Application - North Plot', priority: 'Medium', status: 'In Progress' },
-    { id: 3, task: 'Soil Moisture Reading', priority: 'Low', status: 'Completed' },
-  ];
+  const [reports, setReports] = useState([]);
+  const [respondents, setRespondents] = useState([]); // Logic: Valid Correspondents
+  const [loading, setLoading] = useState(true);
+  
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [newReport, setNewReport] = useState({ 
+    title: '', 
+    message: '', 
+    category: 'Safety', 
+    recipient: '' 
+  });
+
+  const api = axios.create({
+    baseURL: 'http://127.0.0.1:8000/api/v1',
+    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+  });
+
+  const fetchData = async () => {
+  try {
+    const [reportRes, userRes] = await Promise.all([
+      api.get('/management/reports/'),
+      api.get('/management/tasks/assignable_users/') 
+    ]);
+    
+    setReports(reportRes.data);
+    
+    // Logic: If the API is currently only returning 'users', 
+    // we must ensure the Django ViewSet (above) is updated 
+    // to return 'farmcorrespondent' for the farmhand role.
+    setRespondents(userRes.data); 
+  } catch (err) {
+    console.error("Fetch Error:", err.response?.data);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handlePostReport = async (e) => {
+    e.preventDefault();
+    if (!newReport.recipient) return alert("Please select a correspondent.");
+
+    try {
+      const payload = {
+        title: newReport.title,
+        message: newReport.message, // Logic: Matched to your Serializer
+        category: newReport.category,
+        recipient: parseInt(newReport.recipient) 
+      };
+
+      await api.post('/management/reports/', payload);
+      setShowReportModal(false);
+      setNewReport({ title: '', message: '', category: 'Safety', recipient: '' });
+      fetchData();
+      alert("Report dispatched to Correspondent.");
+    } catch (err) {
+      alert("Submission Error: " + JSON.stringify(err.response?.data));
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 lg:p-8">
-      {/* Field Greeting */}
-      <header className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Welcome Back, FarmHand</h1>
-          <p className="text-slate-500 font-medium">Monday, March 23, 2026 • Sunny 28°C</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-emerald-700 transition-all">
-            <Plus size={20} /> Log Yield
-          </button>
-          <button className="flex items-center gap-2 bg-white text-rose-600 border border-rose-200 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-rose-50 transition-all">
-            <AlertTriangle size={20} /> Report Issue
-          </button>
-        </div>
+    <div className="p-8 max-w-5xl mx-auto min-h-screen bg-slate-50">
+      <header className="flex justify-between items-center mb-10">
+        <h1 className="text-3xl font-extrabold text-slate-900">Field Feedback</h1>
+        <button 
+          onClick={() => setShowReportModal(true)}
+          className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-rose-100 flex items-center gap-2 transition-all"
+        >
+          <AlertTriangle size={20} /> New Field Report
+        </button>
       </header>
 
-      {/* Quick Status Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Droplets size={24} /></div>
-          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Humidity</p><p className="text-xl font-bold text-slate-700">62%</p></div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><ClipboardList size={24} /></div>
-          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Tasks</p><p className="text-xl font-bold text-slate-700">2/5 Done</p></div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-3 bg-purple-50 text-purple-600 rounded-xl"><TestTube2 size={24} /></div>
-          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Soil PH</p><p className="text-xl font-bold text-slate-700">6.8</p></div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-          <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><Tractor size={24} /></div>
-          <div><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Asset</p><p className="text-xl font-bold text-slate-700">Tractor A1</p></div>
-        </div>
+      {/* Viewing Reports Posted/Received */}
+      <div className="grid gap-4">
+        <h2 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Recent Dispatches</h2>
+        {reports.length === 0 ? (
+          <div className="p-10 border-2 border-dashed rounded-3xl text-center text-slate-400 font-medium">No reports filed yet.</div>
+        ) : (
+          reports.map(r => (
+            <div key={r.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-2">
+               <div className="flex justify-between items-center">
+                 <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-tighter">{r.category}</span>
+                 <span className="text-[10px] text-slate-300 font-bold">Ref: #{r.id}</span>
+               </div>
+               <h3 className="text-lg font-bold text-slate-800">{r.title}</h3>
+               <p className="text-sm text-slate-500 leading-relaxed">{r.message}</p>
+            </div>
+          ))
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Active Tasks List */}
-        <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-6 border-b border-slate-50 bg-white">
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <ClipboardList className="text-emerald-600" size={24}/>
-              Daily Assignments
-            </h2>
-          </div>
-          <div className="divide-y divide-slate-50">
-            {tasks.map((t) => (
-              <div key={t.id} className="flex items-center justify-between p-5 hover:bg-slate-50/80 transition-colors group">
-                <div className="flex items-center gap-4">
-                  {/* FIXED: Provided valid JSX inside parentheses */}
-                  {t.status === 'Completed' ? (
-                    <CheckCircle2 className="h-7 w-7 text-emerald-500 fill-emerald-50" />
-                  ) : (
-                    <Circle className="h-7 w-7 text-slate-300 group-hover:text-emerald-400 transition-colors" />
-                  )}
-                  <div>
-                    <p className={`text-lg font-semibold ${t.status === 'Completed' ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                      {t.task}
-                    </p>
-                    <span className={`text-[10px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest ${
-                      t.priority === 'High' ? 'bg-rose-100 text-rose-600' : 'bg-sky-100 text-sky-600'
-                    }`}>
-                      {t.priority} Priority
-                    </span>
-                  </div>
+      {/* REPORT MODAL */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-[2.5rem] p-10 max-w-lg w-full shadow-2xl animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Post to Correspondent</h2>
+              <button onClick={() => setShowReportModal(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={24}/></button>
+            </div>
+
+            <form onSubmit={handlePostReport} className="space-y-6">
+              {/* SELECT RECIPIENT DROPDOWN */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block ml-1">Select Registered Respondent</label>
+                <div className="relative">
+                  <select 
+                    required
+                    className="w-full appearance-none p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 outline-none transition-all font-semibold text-slate-700"
+                    value={newReport.recipient}
+                    onChange={e => setNewReport({...newReport, recipient: e.target.value})}
+                  >
+                    <option value="">-- Choose Person --</option>
+                    {respondents.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.first_name || user.email.split('@')[0]} (ID: {user.id})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-4 text-slate-400 pointer-events-none" size={20} />
                 </div>
-                <button className="px-4 py-2 text-sm font-bold text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors">Update</button>
               </div>
-            ))}
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block ml-1">Report Title</label>
+                <input required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-rose-500 transition-all font-medium" placeholder="Brief subject..." value={newReport.title} onChange={e => setNewReport({...newReport, title: e.target.value})} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 block ml-1">Observation Message</label>
+                <textarea required className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl h-36 outline-none focus:border-rose-500 transition-all font-medium resize-none" placeholder="Provide full details for the correspondent..." value={newReport.message} onChange={e => setNewReport({...newReport, message: e.target.value})} />
+              </div>
+
+              <button className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3">
+                <Send size={20} /> Dispatch Field Report
+              </button>
+            </form>
           </div>
         </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          <div className="bg-slate-900 rounded-3xl p-8 text-white shadow-xl shadow-slate-200 relative overflow-hidden">
-            <Wind className="absolute -right-4 -top-4 h-24 w-24 text-white/5" />
-            <h3 className="font-bold mb-4 flex items-center gap-2 text-rose-400 uppercase tracking-widest text-xs">
-              <AlertTriangle size={16}/>
-              Safety Alert
-            </h3>
-            <p className="text-slate-300 leading-relaxed mb-6">
-              High winds expected at <span className="text-white font-bold">2:00 PM</span>. Secure all irrigation equipment in Sector 4 immediately.
-            </p>
-            <button className="w-full bg-white/10 hover:bg-white/20 py-3 rounded-xl text-sm font-bold transition-all border border-white/10">
-              Acknowledge
-            </button>
-          </div>
-
-          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-              Field Notes
-            </h3>
-            <textarea 
-              className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[120px]"
-              placeholder="Record any observations..."
-            ></textarea>
-            <button className="mt-4 w-full bg-emerald-50 text-emerald-700 py-3 rounded-xl font-bold text-sm hover:bg-emerald-100 transition-colors">
-              Save Observation
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
