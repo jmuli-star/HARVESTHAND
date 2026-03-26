@@ -18,6 +18,7 @@ class Task(models.Model):
     title = models.CharField(max_length=255) 
     description = models.TextField(blank=True)
     is_complete = models.BooleanField(default=False)
+    category = models.CharField(max_length=50, default='General')
     
     # OMISSION FIX: Added updated_at so the sender knows WHEN the task was ticked
     created_at = models.DateTimeField(auto_now_add=True)

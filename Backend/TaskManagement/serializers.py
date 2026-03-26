@@ -15,31 +15,31 @@ class UserMinimalSerializer(serializers.ModelSerializer):
         fields = ['id', 'email', 'role']
 
 
-# --- 2. TASK SERIALIZER ---
+# --- 2. TASK SERIALIZER -
 class TaskSerializer(serializers.ModelSerializer):
     """
-    Logic: Handles the "Correspondent -> Farmhand" or "Farmhand -> User" flow.
-    Includes ReadOnlyFields to show string data (email/role) without 
-    requiring extra API joins in React.
+    Logic: Enhanced to support 'Institution vs Local' UI filtering.
     """
-    # These fields look 'up' the ForeignKey to the User model
+    # Lookups for the 'Assigner' (Creator)
     creator_email = serializers.ReadOnlyField(source='creator.email')
+    creator_name = serializers.ReadOnlyField(source='creator.first_name')
     creator_role = serializers.ReadOnlyField(source='creator.role')
     
+    # Lookups for the 'Worker' (Recipient)
     assigned_to_email = serializers.ReadOnlyField(source='assigned_to.email')
+    assigned_to_name = serializers.ReadOnlyField(source='assigned_to.first_name')
     assigned_to_role = serializers.ReadOnlyField(source='assigned_to.role')
 
     class Meta:
         model = Task
         fields = [
             'id', 
-            'creator', 'creator_email', 'creator_role',
-            'assigned_to', 'assigned_to_email', 'assigned_to_role',
-            'title', 'description', 'is_complete', 
+            'creator', 'creator_email', 'creator_name', 'creator_role',
+            'assigned_to', 'assigned_to_email', 'assigned_to_name', 'assigned_to_role',
+            'title', 'description', 'category', 'is_complete', 
             'created_at', 'updated_at'
         ]
-        # Logic: 'creator' is read-only because we set it automatically 
-        # in the View based on the logged-in session (request.user).
+        # 'creator' is set in views.py perform_create()
         read_only_fields = ['creator', 'created_at', 'updated_at']
 
 
