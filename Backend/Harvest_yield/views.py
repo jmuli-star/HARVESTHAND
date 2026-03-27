@@ -185,11 +185,30 @@ class AdminRegistrationView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # --- PERMISSION CLASS ---
+# class IsSystemAdmin(permissions.BasePermission):
+#     """
+#     Custom permission to only allow users with the custom role 'admin'.
+#     """
+#     def has_permission(self, request, view):
+#         return bool(
+#             request.user and 
+#             request.user.is_authenticated and 
+#             getattr(request.user, 'role', None) == 'admin'
+#         )
 class IsSystemAdmin(permissions.BasePermission):
-    """
-    Custom permission to only allow users with the custom role 'admin'.
-    """
     def has_permission(self, request, view):
+        print("\n--- PERMISSION DEBUG ---")
+        print(f"User: {request.user}")
+        print(f"Is Authenticated: {request.user.is_authenticated}")
+        
+        if request.user.is_authenticated:
+            role = getattr(request.user, 'role', 'NO ROLE ATTRIBUTE')
+            print(f"Role found: {role}")
+        else:
+            print("Reason: User is Anonymous. Check JWT Settings or Headers.")
+        
+        print("------------------------\n")
+
         return bool(
             request.user and 
             request.user.is_authenticated and 
