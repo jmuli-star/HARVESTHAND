@@ -82,3 +82,20 @@ class BatchSerializer(serializers.ModelSerializer):
         ]
         # These are read-only because they are linked automatically by the backend
         read_only_fields = ['id', 'farm', 'farmhand', 'created_at']
+
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    # We add write_only to ensure the password is never sent back in a GET request
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'password', 'role']
+
+    def create(self, validated_data):
+        # Using the create_user method from your custom UserManager
+        # to ensure the password gets hashed correctly!
+        return User.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password'],
+            role=validated_data.get('role', 'admin')
+        )

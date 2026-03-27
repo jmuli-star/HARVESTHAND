@@ -22,7 +22,7 @@ from Harvest_yield.views import RegisterView, CustomTokenObtainPairView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/v1/harvest/', include('Harvest_yield.urls')),
+    path('api/v1/', include('Harvest_yield.urls')),
     path('api/v1/management/', include('TaskManagement.urls')),
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/login/', CustomTokenObtainPairView.as_view(), name='login'),

@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render , get_object_or_404
 from rest_framework import viewsets ,status , generics, permissions
 from django.db import models as django_models
 from rest_framework.decorators import action
@@ -169,3 +169,86 @@ def perform_create(self, serializer):
     # 3. Save everything together
     # This ensures farm_id and farmhand_id are NOT null
     serializer.save(farmhand=farmhand_profile, farm=farm)
+
+class AdminRegistrationView(APIView):
+    # Logic: Only users with is_staff=True (Superusers/Admins) can access this
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        serializer = AdminUserCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"detail": "Administrator account provisioned successfully."}, 
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# --- PERMISSION CLASS ---
+class IsSystemAdmin(permissions.BasePermission):
+    """
+    Custom permission to only allow users with the custom role 'admin'.
+    """
+    def has_permission(self, request, view):
+        return bool(
+            request.user and 
+            request.user.is_authenticated and 
+            getattr(request.user, 'role', None) == 'admin'
+        )
+
+# --- THE MODIFIED VIEW ---
+class AdminDashboardStatsView(APIView):
+    """
+    Admin Dashboard: 
+    - GET: Fetch statistics
+    - POST: Provision new Admin
+    - PATCH: Update existing user data
+    - DELETE: Remove a user
+    """
+    permission_classes = [IsSystemAdmin]
+
+    # 1. GET: Fetch Dashboard Stats
+    def get(self, request):
+        stats = User.objects.get_dashboard_stats()
+        # If using a serializer: serializer = DashboardStatsSerializer(stats)
+        # return Response(serializer.data)
+        return Response(stats, status=status.HTTP_200_OK)
+
+    # 2. POST: Provision / Create User (Admin only)
+    def post(self, request):
+        serializer = AdminUserCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"detail": "Administrator account provisioned successfully."}, 
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 3. PATCH: Update specific user (Requires /<pk>/ in URL)
+    def patch(self, request, pk=None):
+        if not pk:
+            return Response({"error": "User ID required for update"}, status=400)
+            
+        target_user = get_object_or_404(User, pk=pk)
+        
+        # partial=True allows updating only specific fields (like role or status)
+        serializer = UserListSerializer(target_user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"detail": "User updated successfully", "user": serializer.data})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    # 4. DELETE: Remove user (Requires /<pk>/ in URL)
+    def delete(self, request, pk=None):
+        if not pk:
+            return Response({"error": "User ID required for deletion"}, status=400)
+            
+        target_user = get_object_or_404(User, pk=pk)
+        
+        # Security: Prevent deleting self
+        if target_user == request.user:
+            return Response({"error": "You cannot delete your own admin account."}, status=400)
+            
+        target_user.delete()
+        return Response({"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)

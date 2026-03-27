@@ -14,8 +14,11 @@ urlpatterns = [
     path('', include(router.urls)),
     
     #admin dashboard statistics logic
-    path('admin/stats/', AdminDashboardStatsView.as_view(), name ='admin_dashboard_stats'),
+    path('admin/stats/', AdminDashboardStatsView.as_view(), name ='admin-dashboard-stats'),
+    path('admin/stats/<int:pk>/', AdminDashboardStatsView.as_view(), name ='admin-stats-detail'),
     path('batches/', BatchListCreateView.as_view(), name ='batch_list_create'),
+    path('admin/create-user/', AdminRegistrationView.as_view(), name ='admin-create'),
+    path('admin/stats/', AdminDashboardStatsView.as_view(), name ='admin-stats'),
 
     # Authentication & Registration (Standard APIViews)
     path('register/', RegisterView.as_view(), name='register'),
