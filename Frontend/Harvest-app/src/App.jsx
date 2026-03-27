@@ -4,6 +4,7 @@ import Home from './Pages/Home'
 import Logintoogle from './Components/Logintoogle'
 import Forms from './Pages/Forms'
 import Contactus from './Pages/Contactus'
+import RegisterUser from './Components/CompleteRegister'
 import Aboutus from './Pages/Aboutus'
 import Axiosfetch from './Components/Axiosfetch'
 import ProtectedRoute from './Components/ProtectRoute'
@@ -11,9 +12,11 @@ import UserDash from './Pages/UserDash'
 import FarminstitutDash from './Pages/FarminstitutDash'
 import FarmhandDash from './Pages/FarmhandDash'
 import AdminDash from './Pages/AdminDash'
+import RegisterAdmin from './Components/RegisterAdmin'
 import Navbar from './Components/Navbar'
 import { Route,Routes } from 'react-router-dom'
 import FarmcorrsDash from './Pages/FarmcorrsDash'
+
 function App() {
   
 
@@ -23,6 +26,11 @@ function App() {
     <Routes>
     <Route path='/' element={<Home/>}/>
     <Route path='/about' element={<Aboutus/>}/>
+    <Route path='/register-admin' element={<RegisterUser/>}/>
+    <Route path='/register-correspondent' element={<RegisterUser/>}/>
+    <Route path='/register-institution' element={<RegisterUser/>}/>
+
+    <Route path='/register-farmhand' element={<RegisterUser/>}/>
     <Route path='/login' element={<Logintoogle/>}/>
     <Route path='/axios' element={<Axiosfetch/>}/>
 
@@ -64,6 +72,15 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        {/* --- NEW ROUTE: ADMIN REGISTRATION --- */}
+        <Route
+          path="/register-admin"
+          element={
+            <ProtectedRoute allowedRoles={['Admin']}>
+              <RegisterAdmin />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 5. General User */}
         <Route 
@@ -74,6 +91,7 @@ function App() {
             </ProtectedRoute>
           } 
         />
+        
 
         {/* Catch-all for Unauthorized or Not Found */}
         <Route path="/unauthorized" element={<div className="p-10 text-red-500 font-bold">Access Denied: You do not have permission to view this page.</div>} />
