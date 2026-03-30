@@ -8,6 +8,7 @@ router.register(r'farms', FarmViewSet, basename='farm')
 # We use 'role-management' to avoid conflict with 'users'
 router.register(r'role-management', UserRoleViewSet, basename='user_role')
 router.register(r'users', UserListViewSet, basename='user_list')
+router.register(r'institution/farms', InstitutionFarmListView, basename='institution-farms')
 
 urlpatterns = [
     # Router URLs
@@ -24,4 +25,11 @@ urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # 5. Production & Harvest Logic
+    path('batches/', BatchListCreateView.as_view(), name='batch_list_create'),
+    # 1. Profile & Settings Endpoints (Fixes the 404)
+    # These match the 'auth/user/' and 'auth/user/update/' calls in React
+    path('auth/user/', UserProfileView.as_view(), name='user-profile'),
+    path('auth/user/update/', UserProfileView.as_view(), name='user-profile-update'),
 ]

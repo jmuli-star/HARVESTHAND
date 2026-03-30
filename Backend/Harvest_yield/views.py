@@ -134,7 +134,7 @@ class UserRoleViewSet(viewsets.ViewSet):
 class UserListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserListSerializer
-    permission_classes = [IsAdminUserRole]
+    permission_classes = [permissions.IsAuthenticated]
 
 # Harvest_yield/views.py
 
@@ -148,27 +148,33 @@ class BatchListCreateView(generics.ListCreateAPIView):
 
 def perform_create(self, serializer):
     from .models import FarmHand, Farm
-    
-    # 1. Find the FarmHand profile for the logged-in user
-    farmhand_profile = FarmHand.objects.filter(user=self.request.user).first()
-    
-    if not farmhand_profile:
-        # If the user has no profile, the database will reject 'farm_id' as null.
-        # We should raise a clear error for the frontend.
-        from rest_framework.exceptions import ValidationError
-        raise ValidationError({"detail": "You do not have a FarmHand profile assigned to you."})
+    def perform_create(self, serializer):
+        # 1. Get the FarmHand profile for the user trying to log the harvest
+        try:
+            farmhand_profile = FarmHand.objects.get(user=self.request.user)
+        except FarmHand.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                "detail": "Your account is not linked to a FarmHand profile. Please contact an admin."
+            })
 
-    # 2. Find the Farm this hand works for
-    # Adjust this filter based on how your Farm/FarmHand models are linked
-    farm = Farm.objects.filter(farmhand=farmhand_profile).first()
-    
-    if not farm:
-        from rest_framework.exceptions import ValidationError
-        raise ValidationError({"detail": "You are not assigned to a specific Farm yet."})
+        # 2. Get the Farm assigned to this FarmHand
+        # Logic: We look for a farm where this farmhand is the manager
+        farm = Farm.objects.filter(farmhand=farmhand_profile).first()
 
-    # 3. Save everything together
-    # This ensures farm_id and farmhand_id are NOT null
-    serializer.save(farmhand=farmhand_profile, farm=farm)
+        if not farm:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({
+                "detail": "You are a registered FarmHand, but you haven't been assigned to a Farm yet."
+            })
+
+        # 3. Save with the linked data (THIS IS THE CRITICAL STEP)
+        serializer.save(
+            farmhand=farmhand_profile, 
+            farm=farm
+        )
+    
+   
 
 class AdminRegistrationView(APIView):
     # Logic: Only users with is_staff=True (Superusers/Admins) can access this
@@ -271,3 +277,136 @@ class AdminDashboardStatsView(APIView):
             
         target_user.delete()
         return Response({"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+    from rest_framework import viewsets, status, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db.models import Sum, Avg, Count
+from .models import Farm, User, Batch, FarmHand
+from .serializers import FarmSerializer # Assuming you have a FarmSerializer
+
+# --- 1. PERMISSION CLASS ---
+class IsInstitutionUser(permissions.BasePermission):
+    """
+    Ensures only users with 'farminstitution' role can access these metrics.
+    """
+    def has_permission(self, request, view):
+        return bool(
+            request.user and 
+            request.user.is_authenticated and 
+            request.user.role == 'farminstitution'
+        )
+
+# --- 2. INSTITUTION STATS VIEW ---
+class InstitutionStatsView(APIView):
+    """
+    Provides the 4 main card metrics for the Institution Dashboard.
+    Logic: Filters everything by the logged-in Institution's ID.
+    """
+    permission_classes = [IsInstitutionUser]
+
+    def get(self, request):
+        user = request.user
+        
+        # Logic: We count farms linked to this specific institution
+        managed_farms = Farm.objects.filter(institution=user)
+        
+        # Logic: Personnel are all unique FarmHands assigned to this institution's farms
+        active_personnel_count = FarmHand.objects.filter(farms__institution=user).distinct().count()
+        
+        # Logic: Yield Index calculation (Aggregating all batches from this institution's farms)
+        # We calculate the sum of quantity_kg across all batches linked to managed farms
+        total_yield = Batch.objects.filter(farm__institution=user).aggregate(Sum('quantity_kg'))['quantity_kg__sum'] or 0
+        
+        # Simplified Yield Index (e.g., comparing current yield to a target or simply formatting)
+        # For the dashboard, we return a formatted string or percentage
+        yield_index_label = f"{total_yield:,} kg" 
+
+        # Logic: Count batches that haven't been fully processed/harvested or need reports
+        pending_reports = Batch.objects.filter(farm__institution=user, qr_generated=False).count()
+
+        stats_data = {
+            "managed_farms_count": managed_farms.count(),
+            "active_personnel": active_personnel_count,
+            "avg_yield": yield_index_label,
+            "pending_reports": pending_reports
+        }
+        
+        return Response(stats_data, status=status.HTTP_200_OK)
+
+# --- 3. INSTITUTION FARMS LIST VIEW ---
+class InstitutionFarmListView(viewsets.ReadOnlyModelViewSet):
+    """
+    Provides the 'Managed Farm Status' table data.
+    Logic: Only returns farms owned by the logged-in institution.
+    """
+    serializer_class = FarmSerializer
+    permission_classes = [IsInstitutionUser]
+
+    def get_queryset(self):
+        # Only show farms where this user is the Institution owner
+        return Farm.objects.filter(institution=self.request.user).select_related('farmhand__user', 'correspondent')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        
+        # Customizing the response to match the Frontend Table exactly
+        data = []
+        for farm in queryset:
+            # Logic: Determine status based on recent treatment logs or batch data
+            # (Mocking 'Optimal' logic for now)
+            status_label = "Optimal" 
+            
+            # Logic: Calculate yield per farm
+            farm_yield = Batch.objects.filter(farm=farm).aggregate(Sum('quantity_kg'))['quantity_kg__sum'] or 0
+            
+            data.append({
+                "id": farm.id,
+                "name": farm.name,
+                "lead_name": farm.correspondent.email if farm.correspondent else "Unassigned",
+                "status": status_label,
+                "yield_performance": int(farm_yield) # Returned as number for the % in frontend
+            })
+            
+        return Response(data)
+
+# --- 4. INSTITUTION NOTIFICATION VIEW ---
+class InstitutionNotificationView(APIView):
+    """
+    Provides the 'Operational Intel' sidebar data.
+    Since you're not using a full intelligence system, we generate 
+    these based on recent Batch and FarmHand activity.
+    """
+    permission_classes = [IsInstitutionUser]
+
+    def get(self, request):
+        user = request.user
+        # Logic: Get the 5 most recent batches created in this institution's network
+        recent_batches = Batch.objects.filter(farm__institution=user).order_by('-created_at')[:5]
+        
+        notifications = []
+        for batch in recent_batches:
+            notifications.append({
+                "message": f"New batch '{batch.crop_name}' recorded at {batch.farm.name}",
+                "type": "info",
+                "timestamp": batch.created_at.strftime("%I:%M %p")
+            })
+            
+        return Response(notifications)
+class UserProfileView(APIView):
+    """
+    Handles fetching and updating the logged-in user's profile details.
+    Targeted by: /auth/user/ and /auth/user/update/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserListSerializer(request.user)
+        return Response(serializer.data)
+
+    def patch(self, request):
+        # partial=True allows users to update only one field (e.g., just the institution)
+        serializer = UserListSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

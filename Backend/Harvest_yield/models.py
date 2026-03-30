@@ -1,13 +1,13 @@
 from django.db import models
 from django.utils.timezone import now 
-from django.utils import timezone  
-from datetime import timedelta
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
 from django.conf import settings
-from django.db.models import Count , Q  #counting logic
+from django.db.models import Count, Q, Sum
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
-# Create your models here.
+# --- Manager Logic ---
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password, **extra_fields):
@@ -18,125 +18,155 @@ class UserManager(BaseUserManager):
         user.set_password(password)
         user.save(using=self._db)
         return user
+
     def create_superuser(self, email, password, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
 
         if extra_fields.get('is_staff') is not True:
-            raise ValueError('super user must have is_staff true')
+            raise ValueError('Superuser must have is_staff=True')
         if extra_fields.get('is_superuser') is not True:
-            raise ValueError('super user must have is_super true')
+            raise ValueError('Superuser must have is_superuser=True')
         
         return self.create_user(email, password, **extra_fields)
-    #admin dashboard stats
+
     def get_dashboard_stats(self):
-        """
-        One-hit database query to get all counts for the Admin Control Panel.
-        This is significantly faster than running 5 separate .count() queries.
-        """
+        """One-hit query for Admin Dashboard"""
         return self.aggregate(
-            total_users = Count('id'),
-            admin_count = Count('id' , filter = Q(role ='admin')),
+            total_users=Count('id'),
+            admin_count=Count('id', filter=Q(role='admin')),
             farmhand_count=Count('id', filter=Q(role='farmhand')),
             correspondent_count=Count('id', filter=Q(role='farmcorrespondent')),
             institution_count=Count('id', filter=Q(role='farminstitution')),
-            # Logic: Users created in the last 24 hours (example of growth metric)
             recent_growth=Count('id', filter=Q(date_joined__gte=now().date()))
         )
-    
-        # return {
-        #     'total_users': self.count(),
-        #     'admin_count': self.filter(role='admin').count(),
-        #     'farmhand_count': self.filter(role='farmhand').count(),
-        #     'correspondent_count': self.filter(role='farmcorrespondent').count(),
-        #     'institution_count': self.filter(role='farminstitution').count(),
-        #     'recent_growth': self.filter(date_joined__gte=timezone.now() - timedelta(days=1)).count(),
-        # }
-        
+
+# --- Core User Model ---
+
 class User(AbstractUser):
     ROLES = (
-        ('admin','Admin',),
-        ('farmhand','FarmHand'),
-        ('farmcorrespondent','FarmCorrespondent'),
-        ('farminstitution','FarmInstitution'),
-        ('user','User'),
+        ('admin', 'Admin'),
+        ('farmhand', 'FarmHand'),
+        ('farmcorrespondent', 'FarmCorrespondent'),
+        ('farminstitution', 'FarmInstitution'),
+        ('user', 'User'),
     )
     username = None
-    email = models.EmailField(unique=True, blank = False , null = False)
-    institution_name = models.CharField(max_length= 150, blank = True)
-    institution_correspondent =models.CharField(max_length=150, blank = True)
-    role = models.CharField(max_length=50 , choices=ROLES, default='user')
+    email = models.EmailField(unique=True, blank=False, null=False)
+    
+    # Hierarchy Logic: Links staff to an Institution
+    associated_institution = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='staff_members',
+        limit_choices_to={'role': 'farminstitution'},
+        help_text="The Institution this user works for."
+    )
+    
+    role = models.CharField(max_length=50, choices=ROLES, default='user')
+    institution_name = models.CharField(max_length=150, blank=True)
+    
+    # MOVED: Phone to User model so it's globally available for profile updates
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS =[]
+    REQUIRED_FIELDS = []
     objects = UserManager()
-    
-    
+
     def __str__(self):
-        return self.email
+        return f"{self.email} ({self.role})"
+
+    # Role Helpers
+    @property
+    def is_institution_admin(self):
+        return self.role == 'farminstitution'
     
-    def is_farminstitution_or_higher(self):
-        return self.role in['farminstitution','farmcorrespondent','farmhand','admin']
-    
-    def is_farmcorrespondent_or_higher(self):
-        return self.role in['farmcorrespondent','farmhand','admin']
-    
-    def is_farmhand_or_higher(self):
-        return self.role in['farmhand','admin']
-    
+    @property
+    def is_farmhand(self):
+        return self.role == 'farmhand'
+
+    @property
     def is_admin_or_higher(self):
-        return self.role == 'admin'
+        return self.role == 'admin' or self.is_superuser
+
+# --- Profile Models ---
 
 class FarmHand(models.Model):
-    """One farmhand can manage multiple farms"""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='farmhand', null = True, blank = True)
-    phone = models.CharField(max_length=20, blank=True)
-    certification_number = models.CharField(max_length=100, unique=True, help_text="EU Organic / USDA / JAS etc.")
-
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='farmhand_profile', 
+        null=True,
+        blank=True
+    )
+    # Phone removed from here as it is now in User model
+    certification_number = models.CharField(max_length=100, blank=True, default="pending")
+    
     def __str__(self):
-        if self.user:
-            return f"{self.user.email}({self.certification_number})"
-        return f"Unassigned profile ({self.certification_number})"
-        
+        return f"Hand: {self.user.email}"
+
+# --- Operational Models ---
 
 class Farm(models.Model):
     name = models.CharField(max_length=200)
-    farmhand = models.ForeignKey(FarmHand, on_delete=models.CASCADE, related_name='farms')
     location = models.CharField(max_length=300)
-    gps_coordinates = models.CharField(max_length=50, blank=True, help_text="e.g. 35.6762,139.6503")
+    gps_coordinates = models.CharField(max_length=50, blank=True)
+    
+    institution = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='managed_farms',
+        limit_choices_to={'role': 'farminstitution'},
+        null=True,
+        blank=True
+    )
+    correspondent = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='assigned_farms',
+        limit_choices_to={'role': 'farmcorrespondent'},
+        null=True,
+        blank=True
+    )
+    farmhand = models.ForeignKey(
+        FarmHand, 
+        on_delete=models.CASCADE, 
+        related_name='farms'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
 
+    @property
+    def total_yield(self):
+        return self.farm_batches.aggregate(total=Sum('quantity_kg'))['total'] or 0
 
 class Batch(models.Model):
-    """Every harvest batch = unique UUID + QR"""
- 
-    farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='farm_batches', null= True, blank= True)
-    farmhand = models.ForeignKey(FarmHand, on_delete = models.CASCADE, null = True , blank = True)
-    crop_name = models.CharField(max_length=150, help_text="e.g. Heirloom Cherry Tomatoes")
+    farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='farm_batches', null=True, blank=True)
+    farmhand = models.ForeignKey(FarmHand, on_delete=models.SET_NULL, null=True)
+    crop_name = models.CharField(max_length=150)
     variety = models.CharField(max_length=100, blank=True)
-    planted_date = models.DateField(null = True, blank = True)
+    planted_date = models.DateField(null=True, blank=True)
     harvest_date = models.DateField(null=True, blank=True)
-    quantity_kg = models.DecimalField(max_digits=8, decimal_places=2)
-    destination = models.CharField(max_length=200, blank=True, help_text="Restaurant name or Export buyer")
+    quantity_kg = models.DecimalField(max_digits=10, decimal_places=2)
+    destination = models.CharField(max_length=200, blank=True)
     qr_generated = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name_plural = "Batches"
 
     def __str__(self):
-        return f"{self.crop_name} , {self.farm} , {self.quantity_kg} , {self.destination}"
-
+        return f"{self.crop_name} ({self.quantity_kg}kg)"
 
 class TreatmentLog(models.Model):
-    """Life story of the batch"""
-    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='treatment_logs')
-    
-    date = models.DateField(default=now)
-    action_type = models.CharField(max_length=50, choices=[
+    ACTIONS = [
         ('planting', 'Planting'),
         ('fertilizer', 'Organic Fertilizer'),
         ('pest_control', 'Organic Pest Control'),
@@ -145,15 +175,20 @@ class TreatmentLog(models.Model):
         ('harvest', 'Harvest'),
         ('packing', 'Packing'),
         ('transport', 'Transport'),
-    ])
-    product_used = models.CharField(max_length=200, blank=True, help_text="e.g. Compost Tea – 10L")
+    ]
+    batch = models.ForeignKey(Batch, on_delete=models.CASCADE, related_name='treatment_logs')
+    date = models.DateField(default=now)
+    action_type = models.CharField(max_length=50, choices=ACTIONS)
+    product_used = models.CharField(max_length=200, blank=True)
     notes = models.TextField(blank=True)
-   
 
     class Meta:
         ordering = ['date']
 
-    def __str__(self):
-        return f"{self.action_type} on {self.date}"
-    
-    
+# --- Signals ---
+
+@receiver(post_save, sender=User)
+def manage_farmhand_profile(sender, instance, created, **kwargs):
+    """Automatically create or update FarmHand profile safely"""
+    if instance.role == 'farmhand':
+        FarmHand.objects.get_or_create(user=instance)
