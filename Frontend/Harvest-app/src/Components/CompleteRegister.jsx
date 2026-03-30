@@ -22,10 +22,10 @@ function RegisterUser() {
   const [role, setRole] = useState(getRoleFromPath());
   
   const roleConfigs = {
-    admin: { label: 'Administrator', icon: <ShieldCheck />, color: 'violet', theme: 'bg-violet-600 shadow-violet-200' },
-    farmhand: { label: 'Farmhand', icon: <Briefcase />, color: 'emerald', theme: 'bg-emerald-600 shadow-emerald-200' },
-    correspondent: { label: 'Correspondent', icon: <BookOpen />, color: 'blue', theme: 'bg-blue-600 shadow-blue-200' },
-    institution: { label: 'Institution', icon: <Landmark />, color: 'amber', theme: 'bg-amber-600 shadow-amber-200' },
+    admin: { label: 'Administrator', icon: <ShieldCheck />, color: 'violet', theme: 'bg-violet-600 shadow-violet-200', apiValue : 'admin'  },
+    farmhand: { label: 'Farmhand', icon: <Briefcase />, color: 'emerald', theme: 'bg-emerald-600 shadow-emerald-200', apiValue : 'farmhand'  },
+    correspondent: { label: 'Correspondent', icon: <BookOpen />, color: 'blue', theme: 'bg-blue-600 shadow-blue-200', apiValue : 'farmcorrespondent' },
+    institution: { label: 'Institution', icon: <Landmark />, color: 'amber', theme: 'bg-amber-600 shadow-amber-200', apiValue : 'farminstitution'  },
   };
 
   const config = roleConfigs[role] || roleConfigs.farmhand;
@@ -50,7 +50,7 @@ function RegisterUser() {
       const response = await axios.post('http://127.0.0.1:8000/api/v1/admin/stats/', {
         email: formData.email,
         password: formData.password,
-        role: role // This string must match your Django choices (e.g., 'farmhand')
+        role: config.apiValue // This string must match your Django choices (e.g., 'farmhand')
       }, { 
         headers: { 
           'Authorization': `Bearer ${token}`,
