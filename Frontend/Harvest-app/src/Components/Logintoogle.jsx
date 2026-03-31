@@ -1,7 +1,7 @@
 import axios from 'axios';
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogIn, UserPlus, Leaf } from 'lucide-react'; // optional icons
+import { LogIn, UserPlus, Leaf } from 'lucide-react'; 
 
 function Logintoogle() {
   const [isLogin, setIsLogin] = useState(true);
@@ -39,7 +39,7 @@ function Logintoogle() {
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
 
-      setMessage("Logged in successfully! 🌾");
+      setMessage("Logged in successfully! ");
       redirectUser(res.data.user.role);
     } catch (err) {
       setMessage("Login failed. Check credentials.");
@@ -79,6 +79,12 @@ function Logintoogle() {
     navigate('/login');
   };
 
+  const handledecline =() =>{
+    localStorage.clear();
+    navigate('/');
+
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-amber-50 to-white flex items-center justify-center p-6">
       <div className="max-w-md w-full">
@@ -86,9 +92,9 @@ function Logintoogle() {
         {/* Logo & Title */}
         <div className="flex items-center justify-center gap-3 mb-8">
           <div className="w-12 h-12 bg-emerald-600 rounded-3xl flex items-center justify-center text-4xl shadow-inner">
-            🌾
+            
           </div>
-          <h1 className="text-4xl font-bold text-emerald-800 tracking-tight">HarvestHub</h1>
+          <h1 className="text-4xl font-bold text-emerald-800 tracking-tight">HarvestHand</h1>
         </div>
 
         <div className="bg-white rounded-3xl shadow-2xl border border-emerald-100 overflow-hidden">
@@ -202,7 +208,7 @@ function Logintoogle() {
                 {isLogin ? (
                   <>Login to HarvestHub <Leaf className="w-6 h-6" /></>
                 ) : (
-                  <>Create My Farm Account 🌱</>
+                  <>Create My Farm Account </>
                 )}
               </button>
             </form>
@@ -234,7 +240,7 @@ function Logintoogle() {
 
         {/* Logout Button (only visible if logged in) */}
         <button
-          onClick={handleLogout}
+          onClick={handledecline}
           className="mt-8 w-full text-stone-500 hover:text-red-600 text-sm flex items-center justify-center gap-2 transition"
         >
           <span>Logout from current session</span>

@@ -14,13 +14,7 @@ function Home() {
     <Navbar/>
       {/* ==================== HERO SECTION ==================== */}
       <section className="bg-gradient-to-br from-emerald-700 via-emerald-800 to-amber-700 py-24 text-white relative overflow-hidden">
-        {/* Subtle farm background emojis */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-12 left-12 text-8xl">🌾</div>
-          <div className="absolute top-40 right-16 text-7xl">🌱</div>
-          <div className="absolute bottom-24 left-1/4 text-8xl rotate-12">🚜</div>
-          <div className="absolute bottom-16 right-1/3 text-6xl">🐄</div>
-        </div>
+        
 
         <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-6 py-2 rounded-3xl text-sm font-medium mb-6">
@@ -45,7 +39,7 @@ function Home() {
            
           </button>
 
-          <p className="text-emerald-200 text-sm mt-6">No credit card required • 30 days free</p>
+         
         </div>
       </section>
 
@@ -109,7 +103,7 @@ function Home() {
                 <div className="w-10 h-10 bg-amber-200 rounded-2xl flex items-center justify-center text-2xl"></div>
                 <div>
                   <div className="font-semibold">Sarah Thompson</div>
-                  <div className="text-sm text-stone-500">Thompson Family Farms • Iowa</div>
+                  <div className="text-sm text-stone-500">Thompson Family Farms</div>
                 </div>
               </div>
             </div>
@@ -120,7 +114,7 @@ function Home() {
                 <div className="w-10 h-10 bg-emerald-200 rounded-2xl flex items-center justify-center text-2xl"></div>
                 <div>
                   <div className="font-semibold">Miguel Rodriguez</div>
-                  <div className="text-sm text-stone-500">Rodriguez Ranch • Texas</div>
+                  <div className="text-sm text-stone-500">Rodriguez Ranch</div>
                 </div>
               </div>
             </div>
@@ -142,12 +136,12 @@ function Home() {
       <div className="bg-emerald-800 text-white py-16 text-center">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-5xl font-bold mb-4">Ready to grow smarter?</h2>
-          <p className="text-emerald-200 text-xl mb-10">Join thousands of farmers already using HarvestHub to run a more profitable, stress-free operation.</p>
+          <p className="text-emerald-200 text-xl mb-10">Join thousands of farmers already using HarvestHand to run a more profitable, stress-free operation.</p>
           <button 
             onClick={goLogin}
             className="px-12 py-6 bg-amber-500 hover:bg-amber-600 text-2xl font-bold rounded-3xl transition-all hover:scale-105"
           >
-            Get Started for Free 🌱
+            Get Started for Free 
           </button>
         </div>
       </div>

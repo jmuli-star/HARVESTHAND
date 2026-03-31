@@ -16,13 +16,13 @@ const Navbar = () => {
                 {/* Logo - Farm Theme */}
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
-                        🌾
+                        
                     </div>
                     <Link 
                         to="/" 
                         className="text-3xl font-bold text-emerald-800 tracking-tight hover:text-emerald-700 transition-colors"
                     >
-                        HarvestHub
+                        HarvestHand
                     </Link>
                 </div>
 
@@ -80,13 +80,6 @@ const Navbar = () => {
                             className="px-6 py-3 text-center text-emerald-700 font-semibold hover:bg-emerald-100 rounded-2xl transition-all"
                         >
                             Log in
-                        </Link>
-                        <Link 
-                            to="/Login"
-                            onClick={() => setIsOpen(false)}
-                            className="px-6 py-3 text-center bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl transition-all shadow-md"
-                        >
-                            Start Free Trial
                         </Link>
                     </div>
                 </ul>
