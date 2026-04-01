@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Messages
+from .models import *
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_email = serializers.EmailField(source='sender.email', read_only=True)

@@ -40,12 +40,18 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'Harvest_yield',
     'TaskManagement',
     'Messages',
     'Accounts',
     'rest_framework',
     'corsheaders',
+    
    
 ]
 
@@ -59,6 +65,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'Harvest.urls'
@@ -79,6 +86,41 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'Harvest.wsgi.application'
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = {
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+}
+
+ACCOUNT_LOGIN_METHODS = {'email', 'username'}
+
+
+ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password1', 'password2']
+# ACCOUNT_EMAIL_REQUIRED = True
+
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+       'APPS': [
+           {
+           'client_id': config('GOOGLE_CLIENT_ID'),
+           'secret': config('GOOGLE_CLIENT_SECRET'),
+           'key': ''  
+            }
+           ],
+        'SCOPE':[
+            'profile',
+            'email',
+        ],
+       'AUTH_PARAMS':{
+           'access_type': 'online'
+       }
+    
+    }
+}
 
 
 # Database
@@ -156,3 +198,5 @@ STATIC_URL = 'static/'
 AUTH_USER_MODEL = 'Harvest_yield.user'
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+LOGIN_REDIRECT_URL = '/'
