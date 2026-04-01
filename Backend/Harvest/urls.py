@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/v1/', include('Harvest_yield.urls')),
     path('api/v1/management/', include('TaskManagement.urls')),
+    path('api/v1/messages/', include('Messages.urls')),
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh') 
