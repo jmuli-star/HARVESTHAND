@@ -1,16 +1,40 @@
-from django.shortcuts import render , get_object_or_404
+from django.shortcuts import render , get_object_or_404 , redirect
+from django.contrib.auth import get_user_model
 from rest_framework import viewsets ,status , generics, permissions
 from django.db import models as django_models
-from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action , api_view , permission_classes , authentication_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .models import *
 from .serializers import *
 from .permissions import *
+from django.db.models import Sum, Avg, Count
+
 
 # Create your views here.
+#google auth
+@api_view(['GET'])
+@authentication_classes([SessionAuthentication])
+@permission_classes([IsAuthenticated])
+def social_token_exchange(request):
+    user = request.user
+    refresh = MyTokenObtainPairSerializer.get_token(user)
+    
+    # 1. Define your React Frontend URL
+    # Use # (fragment) instead of ? (query) for better security with tokens
+    frontend_url = "http://localhost:5173/#"
+    # 2. Attach the tokens to the URL
+    redirect_url = (
+        f"{frontend_url}access={str(refresh.access_token)}"
+        f"&refresh={str(refresh)}"
+        f"&role={user.role}"
+    )
+    
+    # 3. Send the user back to React!
+    return redirect(redirect_url)
 
 # Harvest_yield/views.py
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -97,39 +121,44 @@ class FarmViewSet(viewsets.ModelViewSet):
     #     article = self.get_object()
     #     Like.objects.filter(article=article, user=request.user).delete() 
     #     return Response({'detail': 'unLiked'})   
-
 class UserRoleViewSet(viewsets.ViewSet):
-    permission_classes = [IsAdminUserRole]
-    
-    @action(detail=False, methods=['patch'], url_path='assign-role/(?P<user_id>\d+)/(?P<role>\w+)')
+    """
+    Handles administrative overrides: Assigning roles and Deleting users.
+    Targeted by: PATCH /api/v1/role-management/assign-role/<id>/<role>/
+    """
+    permission_classes = [IsAuthenticated, IsAdminUserRole]
+
+    @action(detail=False, methods=['patch'], url_path=r'assign-role/(?P<user_id>\d+)/(?P<role>\w+)')
     def assign_role(self, request, user_id, role):
         if role not in dict(User.ROLES):
-            return Response({"error": "Invalid role"}, status=400)
+            return Response({"error": "Invalid role choice"}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             target_user = User.objects.get(id=user_id)
-            if target_user.is_admin_or_higher(): 
-                return Response({"error": "Cannot modif admin"})
+            # Prevent downgrading other admins unless you are superuser
+            if target_user.role == 'admin' and not request.user.is_superuser:
+                return Response({"error": "Only Superadmins can modify Admin roles"}, status=403)
                
             target_user.role = role
             target_user.save()
-            return Response({"detail": f"Role updated to {role}"})
+            return Response({"detail": f"User {target_user.email} updated to {role}"})
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
 
-    @action(detail=False, methods=['delete'], url_path='delete-user/(?P<user_id>\d+)')
+    @action(detail=False, methods=['delete'], url_path=r'delete-user/(?P<user_id>\d+)')
     def delete_user(self, request, user_id):
-        if not request.user.is_superadmin():
-            return Response({"error": "Only Super Admin"}, status=403)
+        # Strict security check
+        if not request.user.role == 'admin': 
+            return Response({"error": "Unauthorized"}, status=403)
         
         try:
             user = User.objects.get(id=user_id)
             if user.is_superuser:
-                return Response({"error": "Cannot delete superuser"}, status=403)
+                return Response({"error": "Superusers cannot be deleted via API"}, status=403)
             user.delete()
-            return Response({"detail": "User deleted"})
+            return Response({"detail": "User account removed successfully"}, status=status.HTTP_204_NO_CONTENT)
         except User.DoesNotExist:
-            return Response(status=404)
+            return Response({"error": "User not found"}, status=404)
 
 class UserListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().order_by('-date_joined')
@@ -278,11 +307,7 @@ class AdminDashboardStatsView(APIView):
         target_user.delete()
         return Response({"detail": "User deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
     from rest_framework import viewsets, status, permissions
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from django.db.models import Sum, Avg, Count
-from .models import Farm, User, Batch, FarmHand
-from .serializers import FarmSerializer # Assuming you have a FarmSerializer
+ # Assuming you have a FarmSerializer
 
 # --- 1. PERMISSION CLASS ---
 class IsInstitutionUser(permissions.BasePermission):

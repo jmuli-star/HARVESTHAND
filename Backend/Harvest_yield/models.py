@@ -10,12 +10,17 @@ from django.dispatch import receiver
 # --- Manager Logic ---
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password, **extra_fields):
+    def create_user(self, email, password=None, **extra_fields): # Make password optional
         if not email:
             raise ValueError('The email field is required')
         email = self.normalize_email(email)
         user = self.model(email=email, **extra_fields)
-        user.set_password(password)
+        
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password() # Safe for Social Auth users
+            
         user.save(using=self._db)
         return user
 
@@ -67,7 +72,7 @@ class User(AbstractUser):
     )
     
     role = models.CharField(max_length=50, choices=ROLES, default='user')
-    institution_name = models.CharField(max_length=150, blank=True)
+    institution_name = models.CharField(max_length=150, blank=True , null = True)
     
     # MOVED: Phone to User model so it's globally available for profile updates
     phone = models.CharField(max_length=20, blank=True, null=True)
@@ -91,6 +96,12 @@ class User(AbstractUser):
     @property
     def is_admin_or_higher(self):
         return self.role == 'admin' or self.is_superuser
+    
+    @property
+    def is_staff_member(self):
+        """Returns True if the user belongs to an institution (FarmHand or Correspondent)"""
+        return self.associated_institution is not None or self.role in ['farmhand', 'farmcorrespondent']
+
 
 # --- Profile Models ---
 

@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'rest_framework.authtoken',
+    'dj_rest_auth',
+    'dj_rest_auth.registration',
     'Harvest_yield',
     'TaskManagement',
     'Messages',
@@ -89,19 +92,34 @@ WSGI_APPLICATION = 'Harvest.wsgi.application'
 
 SITE_ID = 1
 
+AUTH_USER_MODEL = 'Harvest_yield.User'
+
 AUTHENTICATION_BACKENDS = {
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 }
 
-ACCOUNT_LOGIN_METHODS = {'email', 'username'}
 
-
-ACCOUNT_SIGNUP_FIELDS = ['email', 'username', 'password1', 'password2']
-# ACCOUNT_EMAIL_REQUIRED = True
-
+ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
+ACOOUNT_SIGNUP_FIELDS =[]
 
+# ACCOUNT_SIGNUP_FIELDS = ['email', 'password1', 'password2']
+
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
+ACCOUNT_EMAIL_REQUIRED = True
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+#  Registration & Social Account Flow ---
+
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
+SOCIALACCOUNT_AUTO_SIGNUP = True  # Maps Google data directly to User model
+SOCIALACCOUNT_QUERY_EMAIL = True  # Queries Google for the email address
+ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
+
+# social account providrs
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
        'APPS': [
@@ -195,8 +213,10 @@ SIMPLE_JWT = {
 
 STATIC_URL = 'static/'
 
-AUTH_USER_MODEL = 'Harvest_yield.user'
+SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
+
 
 CORS_ALLOW_ALL_ORIGINS = True
 
-LOGIN_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/api/v1/auth/social-exchange/'
+LOGOUT_REDIRECT_URL = '/'

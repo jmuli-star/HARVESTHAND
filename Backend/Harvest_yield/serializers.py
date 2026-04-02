@@ -15,21 +15,28 @@ class DashboardStatsSerializer(serializers.Serializer):
     correspondent_count = serializers.IntegerField()
     institution_count = serializers.IntegerField()
     recent_growth = serializers.IntegerField()
-
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Custom JWT payload to include role and institution info for the frontend"""
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add custom claims into the JWT payload
+        token['role'] = user.role
+        token['email'] = user.email
+        return token
+
     def validate(self, attrs):
         data = super().validate(attrs)
-        data['role'] = self.user.role
-        data['email'] = self.user.email
-        data['id'] = self.user.id
-        data['first_name'] = self.user.first_name
-        data['last_name'] = self.user.last_name
-        
-        if self.user.associated_institution:
-            data['institution_id'] = self.user.associated_institution.id
+        # This part adds data to the JSON response body
+        data['user'] = {
+            'id': self.user.id,
+            'email': self.user.email,
+            'role': self.user.role,
+            'first_name': self.user.first_name,
+            'last_name': self.user.last_name,
+            'institution_id': self.user.associated_institution.id if self.user.associated_institution else None
+        }
         return data
-
+    
 class RegisterSerializer(serializers.ModelSerializer):
     """Handles initial self-registration"""
     password2 = serializers.CharField(write_only=True)
@@ -116,17 +123,23 @@ class TreatmentLogSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 # --- 4. Administrative / Linkage Serializers ---
+class AdminUserCreateSerializer(serializers.ModelSerializer):
+    """Used by Superadmins to create other Admins"""
+    class Meta:
+        model = User
+        fields = ['email', 'password', 'first_name', 'last_name', 'role']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        validated_data['role'] = 'admin' # Force role to admin
+        return User.objects.create_superuser(**validated_data)
 
 class InstitutionStaffCreateSerializer(serializers.ModelSerializer):
-    """
-    Used by Institutions to 'Deploy Personnel'.
-    Automatically links new staff to the logged-in Institution.
-    """
-    password = serializers.CharField(write_only=True, min_length=8, required=False)
-
+    """Used by Institutions to 'Deploy Personnel'"""
     class Meta:
         model = User
         fields = ['id', 'email', 'password', 'role', 'first_name', 'last_name', 'associated_institution']
+        extra_kwargs = {'password': {'write_only': True}}
         
     def validate_role(self, value):
         if value not in ['farmhand', 'farmcorrespondent']:
@@ -134,6 +147,9 @@ class InstitutionStaffCreateSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        if 'password' not in validated_data:
-            validated_data['password'] = 'ChangeMe123!'
-        return User.objects.create_user(**validated_data)
+        # If no password provided, set a default (or handle via email invite)
+        password = validated_data.pop('password', 'Harvest2026!')
+        user = User.objects.create_user(**validated_data)
+        user.set_password(password)
+        user.save()
+        return user

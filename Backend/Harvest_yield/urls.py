@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
+from allauth.socialaccount.providers.google.views import OAuth2LoginView
 
 router = DefaultRouter()
 router.register(r'farms', FarmViewSet, basename='farm')
@@ -9,10 +10,15 @@ router.register(r'farms', FarmViewSet, basename='farm')
 router.register(r'role-management', UserRoleViewSet, basename='user_role')
 router.register(r'users', UserListViewSet, basename='user_list')
 router.register(r'institution/farms', InstitutionFarmListView, basename='institution-farms')
+# router.register(r'treatment-logs', TreatmentLogViewSet, basename='treatment-log')
 
 urlpatterns = [
     # 1. Router URLs (Includes the Institution Farms Table)
     path('', include(router.urls)),
+    
+    #hoogleauth
+    path('auth/google/', OAuth2LoginView.adapter_view, name='google_login'),
+    path('auth/social-exchange/', social_token_exchange, name='social_token_exchange'),
     
     # 2. Institution Dashboard Endpoints (FIXES THE 404 ERRORS)
     path('institution/stats/', InstitutionStatsView.as_view(), name='institution-stats'),

@@ -18,12 +18,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
-from Harvest_yield.views import RegisterView, CustomTokenObtainPairView
+from Harvest_yield.views import RegisterView, CustomTokenObtainPairView , social_token_exchange
 from allauth.socialaccount.providers.google.views import oauth2_login
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('account/', include('allauth.urls')),
+    path('accounts/profile/', social_token_exchange),
+    path('accounts/', include('allauth.urls')),
     path('api/v1/auth/google/', oauth2_login, name='google_login'),
     path('api/v1/', include('Harvest_yield.urls')),
     path('api/v1/management/', include('TaskManagement.urls')),
