@@ -1,23 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
 import { 
   User, Mail, ShieldCheck, LogOut, Camera, History, 
   Award, Smartphone, MessageSquare, ShoppingCart, 
   Search, Send, X, Building, CheckCircle, Clock,
-  Settings   
+  Settings, ArrowRight // Added ArrowRight for better UI
 } from 'lucide-react';
 
 function UserDash() {
-  // --- 1. State Management ---
+  const navigate = useNavigate(); // 2. Initialize navigate hook
   const BASE_URL = 'http://127.0.0.1:8000/api/v1';
+  
+  // --- State Management ---
   const [user, setUser] = useState({});
   const [farmhands, setFarmhands] = useState([]);
   const [greeting, setGreeting] = useState('');
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
-
-  // Chat-specific state
-  const [activeChat, setActiveChat] = useState(null); // Stores the specific farmhand object
+  const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const chatEndRef = useRef(null); 
@@ -32,7 +33,13 @@ function UserDash() {
     headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
   });
 
-  // --- 2. Initial Data Load ---
+  // --- Navigation Method ---
+  const goToServices = () => {
+    // Navigates to the service dashboard route
+    navigate('/services'); 
+  };
+
+  // --- Initial Data Load ---
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting('Good Morning');
@@ -55,7 +62,6 @@ function UserDash() {
         last_name: userRes.data.last_name || '',
         phone: userRes.data.phone || ''
       });
-      // Filters users to show only those with the 'farmhand' role
       setFarmhands(handsRes.data.filter(u => u.role === 'farmhand'));
     } catch (err) {
       console.error("Dashboard Load Error:", err);
@@ -65,19 +71,16 @@ function UserDash() {
     }
   };
 
-  // --- 3. Chat System Logic ---
-
-  // Effect to handle polling for new messages only when a chat is open
+  // --- Chat System Logic ---
   useEffect(() => {
     let interval;
     if (activeChat) {
-      fetchMessages(activeChat.id); // Fetch immediately on open
-      interval = setInterval(() => fetchMessages(activeChat.id), 3000); // Poll every 3s
+      fetchMessages(activeChat.id);
+      interval = setInterval(() => fetchMessages(activeChat.id), 3000);
     }
-    return () => clearInterval(interval); // Clean up on close
+    return () => clearInterval(interval);
   }, [activeChat]);
 
-  // Scroll to bottom whenever messages array updates
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -97,22 +100,17 @@ function UserDash() {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
-
     try {
-      const payload = {
-        receiver: activeChat.id, // Directs message to the specific farmhand
-        content: newMessage
-      };
+      const payload = { receiver: activeChat.id, content: newMessage };
       const res = await axios.post(`${BASE_URL}/messages/chat/`, payload, getAuthHeaders());
-      
-      setMessages(prev => [...prev, res.data]); // Optimistic UI update
+      setMessages(prev => [...prev, res.data]);
       setNewMessage('');
     } catch (err) {
-      alert("Failed to send message. Please try again.");
+      alert("Failed to send message.");
     }
   };
 
-  // --- 4. Profile & Auth Handlers ---
+  // --- Profile & Auth Handlers ---
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     try {
@@ -121,7 +119,7 @@ function UserDash() {
       setEditModalOpen(false);
       alert("Profile updated! 🌾");
     } catch (err) {
-      alert("Update failed. Check your data.");
+      alert("Update failed.");
     }
   };
 
@@ -160,6 +158,10 @@ function UserDash() {
           </div>
           
           <div className="flex gap-4">
+            {/* Added a secondary "Shop" button in header for convenience */}
+            <button onClick={goToServices} className="px-6 py-3 bg-emerald-100 text-emerald-700 rounded-3xl font-bold hover:bg-emerald-200 transition flex items-center gap-2">
+               <ShoppingCart size={18} /> Marketplace
+            </button>
             <button onClick={() => setEditModalOpen(true)} className="px-6 py-3 bg-white border border-emerald-200 rounded-3xl font-semibold text-emerald-700 hover:bg-emerald-50 transition shadow-sm flex items-center gap-2">
               <Settings size={18} /> Settings
             </button>
@@ -204,15 +206,21 @@ function UserDash() {
               </div>
             </section>
 
-            {/* ORDER CARD */}
+            {/* UPDATED ORDER CARD: NAVIGATION HUB */}
             <section className="bg-emerald-800 rounded-3xl p-10 text-white relative overflow-hidden shadow-2xl">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
-                  <h3 className="text-3xl font-bold mb-3">Request Collection</h3>
-                  <p className="text-emerald-100 text-lg">Send a pickup request to your assigned farmhands for current yields.</p>
+                  <h3 className="text-3xl font-bold mb-3">Marketplace & Services</h3>
+                  <p className="text-emerald-100 text-lg">Access certified farm products, professional personnel, and yield collection services.</p>
                 </div>
-                <button className="bg-amber-500 hover:bg-amber-400 text-emerald-900 font-bold text-lg px-8 py-6 rounded-3xl flex items-center gap-3 transition-all shadow-lg">
-                  <ShoppingCart size={26} /> Order Delivery
+                {/* 3. Navigation trigger */}
+                <button 
+                  onClick={goToServices}
+                  className="bg-amber-500 hover:bg-amber-400 text-emerald-900 font-bold text-lg px-8 py-6 rounded-3xl flex items-center gap-3 transition-all shadow-lg group"
+                >
+                  <ShoppingCart size={26} /> 
+                  Open Dashboard
+                  <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
               <div className="absolute -bottom-4 -right-4 text-9xl opacity-10 rotate-12">🌾</div>

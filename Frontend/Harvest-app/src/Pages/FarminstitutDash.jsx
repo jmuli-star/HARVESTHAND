@@ -7,8 +7,6 @@ import {
   Sun, Moon, Sunrise, Activity, AlertCircle, RefreshCcw, Search
 } from 'lucide-react';
 
-// --- Global Axios Configuration ---
-// This ensures every request from this component uses the latest token
 const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
 function FarminstitutDash() {
@@ -83,7 +81,6 @@ function FarminstitutDash() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Optional: Auto-refresh every 5 minutes
     const interval = setInterval(() => fetchDashboardData(true), 300000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
@@ -102,214 +99,211 @@ function FarminstitutDash() {
   };
 
   const handleExport = () => {
-    // Logic for generating CSV or PDF
     console.log("Exporting farm data...");
     alert("Yield Index Exported to System Downloads");
   };
 
   const statCards = [
-    { name: 'Managed Farms', value: stats.managed_farms_count, icon: MapPin, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { name: 'Active Personnel', value: stats.active_personnel, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { name: 'Avg. Annual Yield', value: stats.avg_yield, icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { name: 'Pending Reports', value: stats.pending_reports, icon: FileText, color: 'text-rose-600', bg: 'bg-rose-50' },
+    { name: 'Managed Farms', value: stats.managed_farms_count, icon: MapPin, color: 'emerald' },
+    { name: 'Active Personnel', value: stats.active_personnel, icon: Users, color: 'teal' },
+    { name: 'Avg. Annual Yield', value: stats.avg_yield, icon: TrendingUp, color: 'amber' },
+    { name: 'Pending Reports', value: stats.pending_reports, icon: FileText, color: 'rose' },
   ];
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
-      <Loader2 className="animate-spin text-emerald-600" size={40} />
-      <p className="text-slate-400 font-black text-xs uppercase tracking-[0.3em]">Decrypting Ecosystem Data...</p>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 flex items-center justify-center">
+      <div className="flex flex-col items-center">
+        <Loader2 className="animate-spin text-emerald-600" size={48} />
+        <p className="text-emerald-700 mt-6 text-sm font-semibold">Syncing Institutional Command...</p>
+      </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 lg:p-10 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 text-stone-900 font-sans">
+      <div className="max-w-7xl mx-auto px-6 py-10">
         
-        {/* --- ERROR BAR --- */}
+        {/* ERROR BAR */}
         {error && (
-          <div className="mb-6 bg-rose-600 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg animate-in slide-in-from-top duration-300">
-            <div className="flex items-center gap-3 font-bold text-sm">
-              <AlertCircle size={20} /> {error}
+          <div className="mb-8 bg-rose-600 text-white px-6 py-4 rounded-3xl flex items-center justify-between shadow-xl">
+            <div className="flex items-center gap-3">
+              <AlertCircle size={22} />
+              <span className="font-semibold">{error}</span>
             </div>
-            <button onClick={() => fetchDashboardData()} className="bg-white/20 hover:bg-white/30 px-4 py-1 rounded-lg text-xs font-black transition-colors">RETRY SYNC</button>
+            <button 
+              onClick={() => fetchDashboardData()} 
+              className="bg-white text-rose-600 px-5 py-2 rounded-2xl font-bold text-sm hover:bg-rose-50 transition-all"
+            >
+              RETRY SYNC
+            </button>
           </div>
         )}
 
-        {/* --- HEADER --- */}
-        <header className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="bg-white p-1.5 rounded-lg shadow-sm border border-slate-200">
+        {/* HEADER */}
+        <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner">🏛️</div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
                 {greeting.icon}
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+                  {greeting.text} • Institution Authority
+                </span>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                {greeting.text} | Institution Authority Admin
-              </span>
+              <h1 className="text-4xl font-bold tracking-tight text-emerald-900 flex items-center gap-3">
+                Institutional Hub
+                {refreshing && <RefreshCcw size={22} className="animate-spin text-emerald-500" />}
+              </h1>
             </div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              Institutional Hub
-              {refreshing && <RefreshCcw size={20} className="animate-spin text-slate-300" />}
-            </h1>
           </div>
-          
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-4">
             <button 
               onClick={handleExport}
-              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+              className="flex items-center gap-3 bg-white border border-emerald-200 text-emerald-700 px-6 py-3 rounded-3xl font-semibold hover:bg-emerald-50 transition-all shadow-sm"
             >
-              <Download size={18} /> Export Results
+              <Download size={20} /> Export Yield Data
             </button>
             <button 
-              onClick={handleLogout} 
-              className="p-2.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors border border-rose-100 shadow-sm active:scale-95"
-              title="Sign Out"
+              onClick={handleLogout}
+              className="flex items-center gap-3 bg-white text-rose-600 px-6 py-3 rounded-3xl font-semibold hover:bg-rose-50 border border-rose-200 transition-all shadow-sm"
             >
-              <LogOut size={20} />
+              <LogOut size={20} /> Logout
             </button>
           </div>
         </header>
 
-        {/* --- STATS GRID --- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          {statCards.map((item) => (
-            <div key={item.name} className="bg-white rounded-3xl shadow-sm p-6 border border-slate-100 group hover:border-emerald-200 transition-all">
-              <div className="flex items-center justify-between">
+        {/* STATS GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          {statCards.map((item, i) => (
+            <div key={i} className="bg-white rounded-3xl p-6 border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+              <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.name}</p>
-                  <p className="mt-1 text-3xl font-black text-slate-800 tracking-tighter">
-                    {item.value}
-                  </p>
+                  <p className="text-xs font-bold uppercase tracking-widest text-stone-500">{item.name}</p>
+                  <p className="text-4xl font-bold text-emerald-900 mt-2">{item.value}</p>
                 </div>
-                <div className={`${item.bg} ${item.color} p-4 rounded-2xl group-hover:scale-110 transition-transform`}>
-                  <item.icon size={24} />
+                <div className={`w-12 h-12 flex items-center justify-center rounded-2xl bg-${item.color}-100 text-${item.color}-600`}>
+                  <item.icon size={28} />
                 </div>
               </div>
-              <div className="mt-4 flex items-center text-[10px] font-black text-emerald-600 bg-emerald-50 w-fit px-2.5 py-1 rounded-lg">
-                <ArrowUpRight size={14} className="mr-1" /> SYNCED LIVE
+              <div className="mt-6 text-xs font-bold flex items-center gap-2 text-emerald-600">
+                <ArrowUpRight size={14} /> LIVE SYNCED
               </div>
             </div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* --- MAIN TABLE SECTION --- */}
-          <div className="lg:col-span-8 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col">
-            <div className="px-8 py-6 border-b border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
-              <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 italic">
-                <Building2 size={22} className="text-emerald-600" /> Managed Farm Status
+          
+          {/* MAIN FARMS TABLE */}
+          <div className="lg:col-span-8 bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-emerald-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-emerald-50">
+              <h2 className="text-2xl font-bold text-emerald-900 flex items-center gap-3">
+                <Building2 size={26} /> Managed Farms
               </h2>
               
-              {/* Table Search */}
-              <div className="relative w-full sm:w-64">
-                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="relative w-full sm:w-72">
+                <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-emerald-400" />
                 <input 
-                  type="text" 
-                  placeholder="Search farms..." 
-                  className="w-full bg-slate-50 border-none rounded-xl py-2.5 pl-11 pr-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                  type="text"
+                  placeholder="Search farms or leads..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-white border border-emerald-100 focus:border-emerald-300 rounded-3xl py-4 pl-12 pr-6 text-stone-700 outline-none transition-all"
                 />
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-50/50 text-slate-400 text-[10px] uppercase font-black tracking-widest">
-                    <th className="px-8 py-5">Farm Identity</th>
-                    <th className="px-8 py-4">Correspondent</th>
-                    <th className="px-8 py-4">Security Status</th>
-                    <th className="px-8 py-4 text-right">Yield Index</th>
+                  <tr className="bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest">
+                    <th className="px-8 py-6 text-left">Farm</th>
+                    <th className="px-8 py-6 text-left">Lead Correspondent</th>
+                    <th className="px-8 py-6 text-left">Status</th>
+                    <th className="px-8 py-6 text-right">Yield Index</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
+                <tbody className="divide-y divide-emerald-50">
                   {filteredFarms.length > 0 ? filteredFarms.map((farm) => (
                     <tr 
                       key={farm.id} 
-                      className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                      className="hover:bg-emerald-50 transition-colors cursor-pointer"
                       onClick={() => navigate(`/farm-analysis/${farm.id}`)}
                     >
-                      <td className="px-8 py-5 font-bold text-slate-700">{farm.name}</td>
-                      <td className="px-8 py-5 text-slate-500 font-bold text-sm">
-                        {farm.lead_name || <span className="text-slate-300 italic">Unassigned</span>}
+                      <td className="px-8 py-6 font-semibold text-emerald-900">{farm.name}</td>
+                      <td className="px-8 py-6 text-stone-600 font-medium">
+                        {farm.lead_name || <span className="italic text-stone-400">Unassigned</span>}
                       </td>
-                      <td className="px-8 py-5">
+                      <td className="px-8 py-6">
                         <StatusBadge status={farm.status} />
                       </td>
-                      <td className="px-8 py-5">
-                        <div className="flex items-center justify-end gap-4 font-black text-slate-800">
-                          {farm.yield_performance}%
-                          <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
-                        </div>
+                      <td className="px-8 py-6 text-right font-bold text-emerald-900 flex items-center justify-end gap-2">
+                        {farm.yield_performance}%
+                        <ChevronRight size={18} className="text-emerald-300 group-hover:text-emerald-500 transition" />
                       </td>
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan="4" className="px-8 py-20 text-center">
-                        <div className="flex flex-col items-center opacity-40">
-                          <Search size={40} className="mb-2" />
-                          <p className="font-bold text-sm">No results match your current filter.</p>
-                        </div>
+                      <td colSpan="4" className="px-8 py-16 text-center text-stone-400 font-medium">
+                        No farms match your search.
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
-            
-            <div className="mt-auto p-6 bg-slate-50/30 border-t border-slate-50 flex justify-center">
-               <button className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">
-                  View All Managed Assets
-               </button>
-            </div>
           </div>
 
-          {/* --- SIDEBAR --- */}
+          {/* SIDEBAR */}
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl border border-slate-800">
+            
+            {/* RESOURCE HUB */}
+            <div className="bg-emerald-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 mb-2">Management Suite</h3>
-                <h2 className="text-2xl font-black mb-6">Resource Hub</h2>
-                <div className="space-y-3">
+                <h3 className="uppercase text-emerald-300 text-xs font-bold tracking-widest mb-2">Management Suite</h3>
+                <h2 className="text-3xl font-bold mb-8">Resource Hub</h2>
+                <div className="space-y-4">
                   <button 
-                    onClick={() => navigate('/register-farmhand')} 
-                    className="flex items-center justify-center gap-3 w-full bg-emerald-600 font-black py-4 rounded-2xl transition-all text-sm border border-emerald-500 hover:bg-emerald-700 shadow-lg shadow-emerald-900/40 text-white active:scale-[0.98]"
+                    onClick={() => navigate('/register-farmhand')}
+                    className="w-full bg-white text-emerald-900 py-5 rounded-3xl font-bold flex items-center justify-center gap-3 hover:scale-105 transition-all"
                   >
-                    <UserPlus size={18} /> Deploy Personnel
+                    <UserPlus size={24} /> Deploy New Personnel
                   </button>
-                  <button className="flex items-center justify-center gap-3 w-full bg-slate-800 font-black py-4 rounded-2xl transition-all text-sm border border-slate-700 text-slate-300 hover:bg-slate-700 active:scale-[0.98]">
-                    <FileText size={18} /> Audit Reports
+                  <button className="w-full bg-white/20 hover:bg-white/30 py-5 rounded-3xl font-bold flex items-center justify-center gap-3 transition-all">
+                    <FileText size={24} /> View Audit Reports
                   </button>
                 </div>
               </div>
-              <Building2 size={150} className="absolute -bottom-10 -right-10 text-white/5 rotate-12 pointer-events-none" />
+              <Building2 size={180} className="absolute -bottom-12 -right-12 text-white/10 rotate-12 pointer-events-none" />
             </div>
 
-            {/* --- NOTIFICATIONS --- */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-black text-slate-800 flex items-center gap-2 uppercase tracking-widest">
-                  <Bell size={18} className="text-rose-500" /> Operational Intel
+            {/* NOTIFICATIONS */}
+            <div className="bg-white rounded-3xl border border-emerald-100 p-8 shadow-sm">
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-bold text-emerald-900 flex items-center gap-3">
+                  <Bell size={24} className="text-rose-500" /> Operational Intel
                 </h3>
                 {notifications.length > 0 && (
-                  <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  <span className="bg-rose-100 text-rose-600 text-xs font-bold px-4 py-1 rounded-3xl">
                     {notifications.length}
                   </span>
                 )}
               </div>
-              <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+
+              <div className="space-y-6 max-h-96 overflow-y-auto">
                 {notifications.length > 0 ? notifications.map((n, i) => (
-                  <div key={i} className="flex gap-4 group">
-                    <div className={`h-2 w-2 mt-2 rounded-full shrink-0 shadow-sm ${n.type === 'alert' ? 'bg-rose-500 ring-4 ring-rose-50' : 'bg-blue-500 ring-4 ring-blue-50'}`}></div>
-                    <div>
-                      <p className="text-sm text-slate-600 leading-snug font-medium group-hover:text-slate-900 transition-colors">{n.message}</p>
-                      <span className="text-[10px] text-slate-400 font-black tracking-widest uppercase block mt-1">{n.timestamp}</span>
+                  <div key={i} className="flex gap-4">
+                    <div className={`shrink-0 w-3 h-3 mt-1.5 rounded-full ${n.type === 'alert' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                    <div className="flex-1">
+                      <p className="text-sm text-stone-700">{n.message}</p>
+                      <p className="text-xs text-stone-400 font-medium mt-1">{n.timestamp}</p>
                     </div>
                   </div>
                 )) : (
-                  <div className="text-center py-10 opacity-30">
-                    <AlertCircle size={30} className="mx-auto mb-2" />
-                    <p className="text-xs font-bold uppercase tracking-widest">No intelligence found</p>
+                  <div className="py-12 text-center text-stone-400">
+                    <AlertCircle size={32} className="mx-auto mb-3" />
+                    <p className="text-sm font-medium">All clear — no alerts</p>
                   </div>
                 )}
               </div>
@@ -321,15 +315,15 @@ function FarminstitutDash() {
   );
 }
 
-// --- Helper Components ---
+// --- Helper Component ---
 const StatusBadge = ({ status }) => {
   const styles = {
-    Optimal: 'bg-emerald-50 text-emerald-600 border-emerald-100',
-    Warning: 'bg-amber-50 text-amber-600 border-amber-100',
-    Critical: 'bg-rose-50 text-rose-600 border-rose-100'
+    Optimal: 'bg-emerald-100 text-emerald-700',
+    Warning: 'bg-amber-100 text-amber-700',
+    Critical: 'bg-rose-100 text-rose-700'
   };
   return (
-    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase border shadow-sm ${styles[status] || 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+    <span className={`inline-block text-xs font-bold uppercase px-5 py-2 rounded-3xl ${styles[status] || 'bg-stone-100 text-stone-500'}`}>
       {status || 'Unknown'}
     </span>
   );

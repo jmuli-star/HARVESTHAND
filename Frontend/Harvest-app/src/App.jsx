@@ -14,6 +14,7 @@ import FarmhandDash from './Pages/FarmhandDash'
 import AdminDash from './Pages/AdminDash'
 import RegisterAdmin from './Components/RegisterAdmin'
 import Navbar from './Components/Navbar'
+import Service from './Pages/Service'
 import { Route,Routes } from 'react-router-dom'
 import FarmcorrsDash from './Pages/FarmcorrsDash'
 
@@ -81,6 +82,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        
 
         {/* 5. General User */}
         <Route 
@@ -96,6 +98,7 @@ function App() {
         {/* Catch-all for Unauthorized or Not Found */}
         <Route path="/unauthorized" element={<div className="p-10 text-red-500 font-bold">Access Denied: You do not have permission to view this page.</div>} />
         <Route path="*" element={<div className="p-10 text-slate-500">404: Page Not Found</div>} />
+        <Route path="/services" element={<Service/>} />
     
 
     </Routes>
