@@ -14,6 +14,9 @@ from pathlib import Path
 from decouple import config
 import rest_framework_simplejwt
 from datetime import timedelta
+import cloudinary
+import cloudinary.api
+import cloudinary.uploader
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,6 +32,12 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+cloudinary.config(
+    api_key ='342591382866162',
+    api_secret = 'dYdK0TXwHnnG6oOO0xNag_Gu2y8',
+    cloud_name = 'df9yh1tkj'
+)
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 
 # Application definition
@@ -39,6 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
     'django.contrib.staticfiles',
     'django.contrib.sites',
     'allauth',
@@ -49,12 +59,13 @@ INSTALLED_APPS = [
     'dj_rest_auth',
     'dj_rest_auth.registration',
     'Harvest_yield',
+    'Service',
     'TaskManagement',
     'Messages',
     'Accounts',
     'rest_framework',
     'corsheaders',
-    
+    'cloudinary',
    
 ]
 
@@ -207,6 +218,16 @@ SIMPLE_JWT = {
     # If using newer versions of SimpleJWT, this maps 'email' as the identifier
     'TOKEN_USER_CLASS': 'Harvest_yield.User',
 }
+
+#Mpesa settings
+MPESA_ENVIRONMENT = 'sandbox'
+MPESA_SHORTCODE_TYPE ='paybill'
+MPESA_INITIATOR_SECURITY_CREDENTIAL = config('MPESA_INITIATOR_SECURITY_CREDENTIAL')
+
+MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY')
+MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET')
+MPESA_SHORTCODE = config('MPESA_SHORTCODE')
+MPESA_PASSKEY = config('MPESA_PASSKEY')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
