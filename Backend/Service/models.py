@@ -47,11 +47,7 @@ class MarketplaceItem(BaseModel):
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
-    
-    # Cloudinary image storage
     image = CloudinaryField('image', folder='harvest_hand/marketplace/', null=True, blank=True)
-    
-    # Inventory and provider info
     stock_quantity = models.PositiveIntegerField(default=0)
     provider = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
@@ -65,6 +61,20 @@ class MarketplaceItem(BaseModel):
     def __str__(self):
         return f"[{self.category.name}] {self.name}"
 
+# SECTION 3: CART SYSTEM (FOR CHECKOUT)
+# --- NEW: Added CartItem to manage the "pre-payment" phase ---
+class CartItem(BaseModel):
+    """
+    Temporary storage before M-Pesa trigger.
+    Linked to the user (Institution) and the marketplace item.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="cart")
+    item = models.ForeignKey(MarketplaceItem, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+
+    @property
+    def subtotal(self):
+        return self.item.price * self.quantity
 # --- MPESA LOGGING MODELS ---
 
 class MpesaCalls(BaseModel):

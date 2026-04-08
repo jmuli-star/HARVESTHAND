@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Category, MarketplaceItem, MpesaCalls, MpesaCallBacks, MpesaPayment, Order
+from .models import Category, MarketplaceItem, MpesaCalls, MpesaCallBacks, MpesaPayment, Order , CartItem
 
 # --- 1. MARKETPLACE ADMIN ---
 
@@ -33,6 +33,17 @@ class MarketplaceItemAdmin(admin.ModelAdmin):
         return "No Image Uploaded"
     get_image_large.short_description = 'Current Image Preview'
 
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    """Allows admins to see active shopping carts across the platform"""
+    list_display = ('user', 'item', 'quantity', 'get_subtotal', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('user__email', 'item__name')
+    readonly_fields = ('created_at', 'updated_at')
+
+    def get_subtotal(self, obj):
+        return f"KES {obj.subtotal:,}"
+    get_subtotal.short_description = 'Subtotal'
 # --- 2. MPESA LOGGING ADMIN ---
 
 @admin.register(MpesaCalls)
@@ -59,10 +70,9 @@ class MpesaPaymentAdmin(admin.ModelAdmin):
                        'phone_number', 'organization_balance', 'description', 'type', 'created_at')
 
 # --- 3. ORDER MANAGEMENT ADMIN ---
-
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    # Added payment reference to the display for quick reconciliation
+    # Maps fulfillment status and links back to the M-Pesa transaction
     list_display = ('id', 'item', 'get_payment_ref', 'quantity', 'status', 'created_at')
     list_filter = ('status', 'created_at')
     list_editable = ('status',)
@@ -70,5 +80,7 @@ class OrderAdmin(admin.ModelAdmin):
     readonly_fields = ('payment', 'item', 'quantity', 'created_at')
 
     def get_payment_ref(self, obj):
-        return obj.payment.reference
+        if obj.payment:
+            return obj.payment.reference
+        return "N/A"
     get_payment_ref.short_description = 'M-Pesa Ref'

@@ -15,9 +15,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import (
     Category, MarketplaceItem, MpesaCalls, 
-    MpesaCallBacks, MpesaPayment
+    MpesaCallBacks, MpesaPayment ,CartItem
 )
-from .serializers import CategorySerializer, MarketplaceItemSerializer
+from .serializers import CategorySerializer, MarketplaceItemSerializer , CartItemSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,39 @@ class ItemListView(APIView):
             # Automatically assign the logged-in user as the provider
             serializer.save(provider=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#cartview
+class CartView(APIView):
+    """
+    NEW: Handles adding, viewing, and clearing the shopping cart.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        items = CartItem.objects.filter(user=request.user)
+        serializer = CartItemSerializer(items, many=True)
+        total = sum(item.subtotal for item in items)
+        return Response({
+            "items": serializer.data,
+            "grand_total": total
+        })
+
+    def post(self, request):
+        serializer = CartItemSerializer(data=request.data)
+        if serializer.is_valid():
+            # Check if item already exists in cart, if so, update quantity
+            item = serializer.validated_data['item']
+            cart_item, created = CartItem.objects.get_or_create(
+                user=request.user, 
+                item=item,
+                defaults={'quantity': serializer.validated_data.get('quantity', 1)}
+            )
+            if not created:
+                cart_item.quantity += serializer.validated_data.get('quantity', 1)
+                cart_item.save()
+            
+            return Response({"message": "Cart updated"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # --- 3. MPESA STK PUSH (INITIATION) ---
