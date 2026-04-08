@@ -37,8 +37,6 @@ def social_token_exchange(request):
     return redirect(redirect_url)
 
 # Harvest_yield/views.py
-from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import MyTokenObtainPairSerializer # Import your new serializer
 
 class AdminDashboardStatsView(APIView):
     """

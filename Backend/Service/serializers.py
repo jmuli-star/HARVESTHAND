@@ -15,14 +15,21 @@ class CategorySerializer(serializers.ModelSerializer):
 class MarketplaceItemSerializer(serializers.ModelSerializer):
     """
     Handles the products and personnel. 
-    Uses CategorySerializer to provide full category data.
+    Uses CategorySerializer for rich GET data and category_id for POSTing.
     """
+    # Nested category object for the frontend to show names/icons easily
     category = CategorySerializer(read_only=True)
+    
+    # ID field for the frontend to send the integer ID when creating an item
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), 
         source='category', 
         write_only=True
     )
+    
+    # Provider info - Read only because we set this via the request user in the view
+    provider_name = serializers.ReadOnlyField(source='provider.username')
+    
     # The image field automatically returns the Cloudinary URL
     image = serializers.SerializerMethodField()
 
@@ -31,10 +38,11 @@ class MarketplaceItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'category', 'category_id', 'item_type', 'name', 
             'description', 'price', 'image', 'stock_quantity', 
-            'is_active', 'created_at'
+            'provider_name', 'is_active', 'created_at'
         ]
 
     def get_image(self, obj):
+        # Cloudinary specific URL handling
         if obj.image:
             return obj.image.url
         return None

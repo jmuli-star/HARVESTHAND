@@ -32,6 +32,7 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
+
 cloudinary.config(
     api_key ='342591382866162',
     api_secret = 'dYdK0TXwHnnG6oOO0xNag_Gu2y8',

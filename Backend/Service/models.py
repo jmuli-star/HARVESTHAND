@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils.text import slugify
 from cloudinary.models import CloudinaryField
 
 # --- BASE MODELS ---
@@ -18,11 +19,16 @@ class Category(BaseModel):
     Categories: Personnel (Engineers/Mechanics), Products (Solar/Feeders), etc.
     """
     name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
     icon_name = models.CharField(max_length=50, default="package") # For Lucide icons
 
     class Meta:
         verbose_name_plural = "Categories"
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
@@ -37,7 +43,7 @@ class MarketplaceItem(BaseModel):
     ]
 
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="items")
-    item_type = models.CharField(max_length=20, choices=ITEM_TYPES)
+    item_type = models.CharField(max_length=20, choices=ITEM_TYPES, default='product')
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
@@ -59,7 +65,7 @@ class MarketplaceItem(BaseModel):
     def __str__(self):
         return f"[{self.category.name}] {self.name}"
 
-# --- MPESA LOGGING MODELS (Your existing logic) ---
+# --- MPESA LOGGING MODELS ---
 
 class MpesaCalls(BaseModel):
     ip_address = models.TextField()
@@ -84,7 +90,6 @@ class MpesaCallBacks(BaseModel):
 class MpesaPayment(BaseModel):
     """
     Final record of a successful payment. 
-    Linked to a user and potentially a specific item.
     """
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
@@ -119,14 +124,20 @@ class MpesaPayment(BaseModel):
 
 class Order(BaseModel):
     """
-    Connects a successful MpesaPayment to the actual business fulfillment.
+    Connects a successful MpesaPayment to business fulfillment.
     """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('shipped', 'Shipped'),
+        ('completed', 'Completed')
+    ]
+    
     payment = models.OneToOneField(MpesaPayment, on_delete=models.CASCADE)
     item = models.ForeignKey(MarketplaceItem, on_delete=models.PROTECT)
     quantity = models.PositiveIntegerField(default=1)
     status = models.CharField(
         max_length=20, 
-        choices=[('pending', 'Pending'), ('shipped', 'Shipped'), ('completed', 'Completed')],
+        choices=STATUS_CHOICES,
         default='pending'
     )
 
