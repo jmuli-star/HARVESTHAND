@@ -1,14 +1,30 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, FarmHand, Farm, Batch, TreatmentLog
+from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent
 
-# 1. Define the Inline to show FarmHand details inside the User page
+# ==========================================
+# SECTION 1: INLINES
+# ==========================================
+
+# --- NEW: Added Correspondent Inline ---
+class FarmCorrespondentInline(admin.StackedInline):
+    model = FarmCorrespondent
+    can_delete = False
+    verbose_name_plural = 'Farm Correspondent Profile'
+    fk_name = 'user'
+    extra = 0
+
 class FarmHandInline(admin.StackedInline):
+    """Shows professional worker details inside the User page."""
     model = FarmHand
     can_delete = False
     verbose_name_plural = 'FarmHand Professional Profile'
     fk_name = 'user'
     extra = 0
+
+# ==========================================
+# SECTION 2: USER ADMINISTRATION
+# ==========================================
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -18,7 +34,8 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ('email', 'institution_name', 'associated_institution__email')
     ordering = ('-date_joined',)
     
-    inlines = (FarmHandInline,)
+    # --- UPDATED: Now handles both Hand and Correspondent profiles ---
+    inlines = (FarmHandInline, FarmCorrespondentInline)
 
     # Fieldsets updated to include the linkage field
     fieldsets = (
@@ -27,6 +44,7 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('role', 'associated_institution', 'institution_name'),
             'description': 'Link this user to a Parent Institution if they are a Correspondent or Farmhand.'
         }),
+        ('Personal Info', {'fields': ('first_name', 'last_name', 'phone')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
     )
     
@@ -38,7 +56,9 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-# 2. Operational Models Registration
+# ==========================================
+# SECTION 3: OPERATIONAL MODELS
+# ==========================================
 
 @admin.register(Farm)
 class FarmAdmin(admin.ModelAdmin):
@@ -47,6 +67,7 @@ class FarmAdmin(admin.ModelAdmin):
     list_filter = ['institution', 'correspondent', 'location']
     search_fields = ['name', 'institution__email', 'correspondent__email', 'farmhand__user__email']
     
+    # --- NEW: Organized Management Chain Section ---
     fieldsets = (
         ('General Information', {
             'fields': ('name', 'location', 'gps_coordinates')
@@ -58,29 +79,42 @@ class FarmAdmin(admin.ModelAdmin):
     )
 
     def yield_display(self, obj):
+        # Original logic: pulls from @property in models.py
         return f"{obj.total_yield} kg"
     yield_display.short_description = 'Total Yield'
 
 @admin.register(Batch)
 class BatchAdmin(admin.ModelAdmin):
+    """Tracks specific harvest batches linked to farms."""
     list_display = ['crop_name', 'farm', 'farmhand', 'quantity_kg', 'harvest_date', 'qr_generated']
     readonly_fields = ['id', 'created_at']
     list_filter = ['farm', 'crop_name', 'qr_generated', 'harvest_date']
     search_fields = ['crop_name', 'farm__name', 'farmhand__user__email']
     
     fieldsets = (
-        ('Batch Details', {'fields': ('farm', 'farmhand', 'crop_name', 'variety')}),
-        ('Harvest Info', {'fields': ('quantity_kg', 'planted_date', 'harvest_date', 'destination')}),
+        ('Batch Ownership', {'fields': ('farm', 'farmhand')}),
+        ('Crop Details', {'fields': ('crop_name', 'variety')}),
+        ('Harvest & Logistics', {'fields': ('quantity_kg', 'planted_date', 'harvest_date')}),
         ('System Metadata', {'fields': ('id', 'qr_generated', 'created_at')}),
     )
 
 @admin.register(TreatmentLog)
 class TreatmentLogAdmin(admin.ModelAdmin):
-    list_display = ['batch', 'action_type', 'date', 'product_used']
+    """Logs of activities like fertilizer use or pest control."""
+    list_display = ['batch', 'action_type', 'date']
     list_filter = ['action_type', 'date']
-    search_fields = ['batch__crop_name', 'product_used', 'notes']
+    search_fields = ['batch__crop_name', 'notes']
     ordering = ('-date',)
 
-    # Make it easier to see which farm this log belongs to
+    # Optimization: reduces SQL queries when viewing logs
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('batch__farm')
+
+# --- NEW: Standalone Registration for Profiles ---
+@admin.register(FarmHand)
+class FarmHandProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'certification_number']
+
+@admin.register(FarmCorrespondent)
+class FarmCorrespondentProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'region_assigned']

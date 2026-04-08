@@ -1,11 +1,13 @@
 from rest_framework import serializers
-from .models import User, FarmHand, Farm, Batch, TreatmentLog
+from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
-# --- 1. System & Auth Serializers ---
+# ==========================================
+# SECTION 1: SYSTEM & AUTH SERIALIZERS
+# ==========================================
 
 class DashboardStatsSerializer(serializers.Serializer):
     """Structures aggregated data from UserManager.get_dashboard_stats()"""
@@ -15,30 +17,32 @@ class DashboardStatsSerializer(serializers.Serializer):
     correspondent_count = serializers.IntegerField()
     institution_count = serializers.IntegerField()
     recent_growth = serializers.IntegerField()
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Customizes the JWT response to include role and institution context."""
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        # Add custom claims into the JWT payload
         token['role'] = user.role
         token['email'] = user.email
         return token
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        # This part adds data to the JSON response body
+        # --- ADDED: Include institution_id in response for frontend context ---
         data['user'] = {
             'id': self.user.id,
             'email': self.user.email,
             'role': self.user.role,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
-            'institution_id': self.user.associated_institution.id if self.user.associated_institution else None
+            'institution_id': self.user.associated_institution.id if self.user.associated_institution else None,
+            'institution_name': self.user.institution_name if self.user.role == 'farminstitution' else None
         }
         return data
     
 class RegisterSerializer(serializers.ModelSerializer):
-    """Handles initial self-registration"""
+    """Handles self-registration for standard users and institutions."""
     password2 = serializers.CharField(write_only=True)
 
     class Meta:
@@ -55,26 +59,25 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password2')
         return User.objects.create_user(**validated_data)
 
-# --- 2. User & Personnel Serializers ---
+# ==========================================
+# SECTION 2: USER & PERSONNEL SERIALIZERS
+# ==========================================
 
 class UserListSerializer(serializers.ModelSerializer):
-    """
-    Main serializer for User Profiles. 
-    Used for the Directory and the 'Settings' update.
-    """
+    """Directory view of users, showing their hierarchy links."""
     class Meta:
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'phone', 
             'institution_name', 'role', 'date_joined', 'associated_institution'
         ]
-        # REMOVED: 'read_only_fields = fields' to allow PATCH updates
         read_only_fields = ['id', 'email', 'date_joined', 'role']
 
 class FarmHandSerializer(serializers.ModelSerializer):
-    """Profile details for FarmHands"""
+    """Profile details for FarmHands including their certification."""
     email = serializers.EmailField(source='user.email', read_only=True)
     full_name = serializers.SerializerMethodField()
+    phone = serializers.CharField(source='user.phone', read_only=True)
 
     class Meta:
         model = FarmHand
@@ -83,14 +86,24 @@ class FarmHandSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.email.split('@')[0]
 
-# --- 3. Operational Serializers ---
+# --- ADDED: Serializer for FarmCorrespondent Profile ---
+class FarmCorrespondentSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source='user.email', read_only=True)
+    class Meta:
+        model = FarmCorrespondent
+        fields = ['id', 'email', 'region_assigned']
+
+# ==========================================
+# SECTION 3: OPERATIONAL SERIALIZERS
+# ==========================================
 
 class FarmSerializer(serializers.ModelSerializer):
-    """Main serializer for the Institutional Dashboard Table"""
+    """Links physical farms to the owners (institutions) and staff (hands/correspondents)."""
     farmhand_email = serializers.ReadOnlyField(source='farmhand.user.email')
     correspondent_email = serializers.ReadOnlyField(source='correspondent.email')
     institution_name = serializers.ReadOnlyField(source='institution.institution_name')
-    yield_index = serializers.ReadOnlyField(source='total_yield')
+    # Use yield_index if you kept the @property in models, else remove this field
+    yield_index = serializers.ReadOnlyField(source='total_yield', default=0)
 
     class Meta:
         model = Farm
@@ -104,14 +117,14 @@ class FarmSerializer(serializers.ModelSerializer):
         read_only_fields = ['institution', 'created_at']
 
 class BatchSerializer(serializers.ModelSerializer):
-    """Harvest data linked to farms and hands"""
+    """Harvest tracking linked back to a farm and specific hand."""
     farm_name = serializers.ReadOnlyField(source='farm.name')
     hand_email = serializers.ReadOnlyField(source='farmhand.user.email')
 
     class Meta:
         model = Batch
         fields = [
-            'id', 'crop_name', 'variety', 'quantity_kg', 'destination', 
+            'id', 'crop_name', 'variety', 'quantity_kg', 
             'farm', 'farm_name', 'farmhand', 'hand_email', 
             'planted_date', 'harvest_date', 'qr_generated', 'created_at'
         ]
@@ -122,33 +135,40 @@ class TreatmentLogSerializer(serializers.ModelSerializer):
         model = TreatmentLog
         fields = '__all__'
 
-# --- 4. Administrative / Linkage Serializers ---
+# ==========================================
+# SECTION 4: ADMINISTRATIVE & DEPLOYMENT
+# ==========================================
+
 class AdminUserCreateSerializer(serializers.ModelSerializer):
-    """Used by Superadmins to create other Admins"""
+    """Exclusive to Superadmins for creating new Admin accounts."""
     class Meta:
         model = User
         fields = ['email', 'password', 'first_name', 'last_name', 'role']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        validated_data['role'] = 'admin' # Force role to admin
+        validated_data['role'] = 'admin'
         return User.objects.create_superuser(**validated_data)
 
 class InstitutionStaffCreateSerializer(serializers.ModelSerializer):
-    """Used by Institutions to 'Deploy Personnel'"""
+    """
+    STRICT HIERARCHY: Used by FarmInstitutions to 'Hire' staff.
+    Ensures the staff member is automatically linked to the institution.
+    """
     class Meta:
         model = User
         fields = ['id', 'email', 'password', 'role', 'first_name', 'last_name', 'associated_institution']
         extra_kwargs = {'password': {'write_only': True}}
         
     def validate_role(self, value):
+        # --- ADDED: Role Enforcement ---
         if value not in ['farmhand', 'farmcorrespondent']:
             raise serializers.ValidationError("Institutions can only deploy Farmhands or Correspondents.")
         return value
 
     def create(self, validated_data):
-        # If no password provided, set a default (or handle via email invite)
-        password = validated_data.pop('password', 'Harvest2026!')
+        # Default password if not provided in the frontend form
+        password = validated_data.pop('password', 'Harvest@2026')
         user = User.objects.create_user(**validated_data)
         user.set_password(password)
         user.save()

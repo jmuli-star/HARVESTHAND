@@ -325,37 +325,57 @@ class InstitutionStatsView(APIView):
     Provides the 4 main card metrics for the Institution Dashboard.
     Logic: Filters everything by the logged-in Institution's ID.
     """
-    permission_classes = [IsInstitutionUser]
+    permission_classes = [IsAuthenticated] # Using IsAuthenticated for initial testing
 
     def get(self, request):
-        user = request.user
-        
-        # Logic: We count farms linked to this specific institution
-        managed_farms = Farm.objects.filter(institution=user)
-        
-        # Logic: Personnel are all unique FarmHands assigned to this institution's farms
-        active_personnel_count = FarmHand.objects.filter(farms__institution=user).distinct().count()
-        
-        # Logic: Yield Index calculation (Aggregating all batches from this institution's farms)
-        # We calculate the sum of quantity_kg across all batches linked to managed farms
-        total_yield = Batch.objects.filter(farm__institution=user).aggregate(Sum('quantity_kg'))['quantity_kg__sum'] or 0
-        
-        # Simplified Yield Index (e.g., comparing current yield to a target or simply formatting)
-        # For the dashboard, we return a formatted string or percentage
-        yield_index_label = f"{total_yield:,} kg" 
+        try:
+            user = request.user
+            
+            # --- 1. Managed Farms ---
+            # Counts farms where this user is the primary Institution
+            managed_farms = Farm.objects.filter(institution=user)
+            farms_count = managed_farms.count()
 
-        # Logic: Count batches that haven't been fully processed/harvested or need reports
-        pending_reports = Batch.objects.filter(farm__institution=user, qr_generated=False).count()
+            # --- 2. Active Personnel (FIXED LOGIC) ---
+            # We look for FarmHands who are assigned to any farm owned by this institution.
+            # Using the related_name 'assigned_farms' defined in our models.py.
+            active_personnel_count = FarmHand.objects.filter(
+                assigned_farms__institution=user
+            ).distinct().count()
 
-        stats_data = {
-            "managed_farms_count": managed_farms.count(),
-            "active_personnel": active_personnel_count,
-            "avg_yield": yield_index_label,
-            "pending_reports": pending_reports
-        }
-        
-        return Response(stats_data, status=status.HTTP_200_OK)
+            # --- 3. Yield Index (Aggregation) ---
+            # Summing quantity_kg across all batches linked to this institution's farms
+            total_yield_data = Batch.objects.filter(
+                farm__institution=user
+            ).aggregate(total=Sum('quantity_kg'))
+            
+            total_yield = total_yield_data['total'] or 0
+            # Formatted string for the "Yield Performance" card
+            yield_index_label = f"{total_yield:,} kg" 
 
+            # --- 4. Pending Reports ---
+            # Count batches where QR hasn't been generated yet
+            pending_reports = Batch.objects.filter(
+                farm__institution=user, 
+                qr_generated=False
+            ).count()
+
+            stats_data = {
+                "managed_farms_count": farms_count,
+                "active_personnel": active_personnel_count,
+                "avg_yield": yield_index_label,
+                "pending_reports": pending_reports
+            }
+            
+            return Response(stats_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # This will help you see the error in the console if it happens again
+            print(f"Error in InstitutionStatsView: {str(e)}")
+            return Response(
+                {"error": "Internal Server Error", "details": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 # --- 3. INSTITUTION FARMS LIST VIEW ---
 class InstitutionFarmListView(viewsets.ReadOnlyModelViewSet):
     """
