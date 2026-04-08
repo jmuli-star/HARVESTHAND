@@ -102,7 +102,7 @@ function Home() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-amber-200 rounded-2xl flex items-center justify-center text-2xl"></div>
                 <div>
-                  <div className="font-semibold">Sarah Thompson</div>
+                  <div className="font-semibold">Sandra</div>
                   <div className="text-sm text-stone-500">Thompson Family Farms</div>
                 </div>
               </div>
@@ -113,7 +113,7 @@ function Home() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-200 rounded-2xl flex items-center justify-center text-2xl"></div>
                 <div>
-                  <div className="font-semibold">Miguel Rodriguez</div>
+                  <div className="font-semibold">Njeri</div>
                   <div className="text-sm text-stone-500">Rodriguez Ranch</div>
                 </div>
               </div>
@@ -133,7 +133,7 @@ function Home() {
         </div>
       </div>
       <br/>
-      <div className="bg-emerald-800 text-white py-16 text-center">
+      {/* <div className="bg-emerald-800 text-white py-16 text-center">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-5xl font-bold mb-4">Ready to grow smarter?</h2>
           <p className="text-emerald-200 text-xl mb-10">Join thousands of farmers already using HarvestHand to run a more profitable, stress-free operation.</p>
@@ -144,7 +144,7 @@ function Home() {
             Get Started for Free 
           </button>
         </div>
-      </div>
+      </div> */}
     </>
   );
 }
