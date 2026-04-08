@@ -19,11 +19,11 @@ function FarminstitutDash() {
   const [greeting, setGreeting] = useState({ text: 'Welcome', icon: <Activity size={20} /> });
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Data State: These values map directly to your Database response
+  // Data State: Synchronized with the Django InstitutionStatsView & FarmListView
   const [stats, setStats] = useState({
     managed_farms_count: 0,
-    active_personnel: 0, // This is your Personnel count from DB
-    avg_yield: '0%',
+    active_personnel: 0, 
+    avg_yield: '0 kg', // Updated to match the string formatting from backend
     pending_reports: 0
   });
   const [farms, setFarms] = useState([]);
@@ -48,6 +48,7 @@ function FarminstitutDash() {
   }, []);
 
   // --- 4. CORE FETCH LOGIC (Database Sync) ---
+  // Updated: Now hits the specific Institution hierarchy endpoints
   const fetchDashboardData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -56,14 +57,13 @@ function FarminstitutDash() {
     if (!headers) return;
 
     try {
-      // Parallel Fetching for speed
+      // Parallel Fetching: Pulls specific stats, farms, and intel logs for THIS institution
       const [statsRes, farmsRes, notifyRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/institution/stats/`, headers),
         axios.get(`${API_BASE_URL}/institution/farms/`, headers),
         axios.get(`${API_BASE_URL}/institution/notifications/`, headers)
       ]);
 
-      // Update state with Real Database Values
       setStats(statsRes.data);
       setFarms(farmsRes.data);
       setNotifications(notifyRes.data);
@@ -82,7 +82,6 @@ function FarminstitutDash() {
     }
   }, [navigate, getAuthHeaders]);
 
-  // Initial load and auto-refresh every 5 minutes
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(() => fetchDashboardData(true), 300000);
@@ -90,10 +89,11 @@ function FarminstitutDash() {
   }, [fetchDashboardData]);
 
   // --- 5. Dynamic Stat Card Mapping ---
+  // Updated: Values now map to the new keys returned by InstitutionStatsView
   const statCards = [
     { name: 'Managed Farms', value: stats.managed_farms_count, icon: MapPin, color: 'emerald' },
-    { name: 'Active Personnel', value: stats.active_personnel, icon: Users, color: 'teal' }, // Linked to Personnel DB
-    { name: 'Avg. Annual Yield', value: stats.avg_yield, icon: TrendingUp, color: 'amber' },
+    { name: 'Active Personnel', value: stats.active_personnel, icon: Users, color: 'teal' }, 
+    { name: 'Yield Performance', value: stats.avg_yield, icon: TrendingUp, color: 'amber' },
     { name: 'Pending Reports', value: stats.pending_reports, icon: FileText, color: 'rose' },
   ];
 
@@ -120,7 +120,7 @@ function FarminstitutDash() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-stone-50 p-6 lg:p-12">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-stone-50 p-6 lg:p-12 font-sans">
       <div className="max-w-7xl mx-auto">
         
         {/* Header Section */}
@@ -139,7 +139,7 @@ function FarminstitutDash() {
           </div>
 
           <div className="flex gap-3">
-            <button onClick={handleLogout} className="px-6 py-3 bg-white border border-stone-200 rounded-2xl font-bold text-stone-400 hover:text-rose-500 transition-all flex items-center gap-2">
+            <button onClick={handleLogout} className="px-6 py-3 bg-white border border-stone-200 rounded-2xl font-bold text-stone-400 hover:text-rose-500 hover:border-rose-100 transition-all flex items-center gap-2 shadow-sm">
               <LogOut size={18} /> Logout
             </button>
           </div>
@@ -164,7 +164,7 @@ function FarminstitutDash() {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Farms Table */}
+          {/* Farms Table - Updated to display lead correspondents and progress index */}
           <div className="lg:col-span-2 bg-white rounded-[3rem] border border-stone-100 shadow-2xl overflow-hidden">
             <div className="p-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/50">
               <h3 className="font-black text-stone-800 uppercase tracking-widest text-sm">Managed Estate Units</h3>
@@ -175,7 +175,7 @@ function FarminstitutDash() {
                   placeholder="Filter farms..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-6 py-2 bg-white rounded-full border-none text-xs font-bold focus:ring-2 focus:ring-emerald-500 w-48 transition-all"
+                  className="pl-10 pr-6 py-2 bg-white rounded-full border border-stone-100 text-xs font-bold focus:ring-2 focus:ring-emerald-500 w-48 transition-all outline-none"
                 />
               </div>
             </div>
@@ -185,7 +185,7 @@ function FarminstitutDash() {
                   <tr className="text-[10px] font-black uppercase tracking-widest text-stone-400 border-b border-stone-50">
                     <th className="px-8 py-6">Farm Unit</th>
                     <th className="px-8 py-6">Lead Correspondent</th>
-                    <th className="px-8 py-6">Yield Index</th>
+                    <th className="px-8 py-6">Yield Perf. Index</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-50">
@@ -195,7 +195,13 @@ function FarminstitutDash() {
                       <td className="px-8 py-6 text-stone-500 font-medium">{farm.lead_name || 'Unassigned'}</td>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-3">
-                          <span className="font-black text-emerald-600">{farm.yield_performance}%</span>
+                          <div className="flex-1 h-2 bg-stone-100 rounded-full w-24 overflow-hidden">
+                             <div 
+                               className="h-full bg-emerald-500 rounded-full" 
+                               style={{ width: `${Math.min(farm.yield_performance, 100)}%` }} 
+                             />
+                          </div>
+                          <span className="font-black text-emerald-600 text-xs">{farm.yield_performance}%</span>
                           <ChevronRight size={14} className="text-stone-300 group-hover:translate-x-1 transition-transform" />
                         </div>
                       </td>
@@ -208,13 +214,14 @@ function FarminstitutDash() {
 
           {/* Action Sidebar */}
           <div className="space-y-6">
+            {/* Call to Action: Personnel Deployment */}
             <div className="bg-stone-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden group">
               <div className="relative z-10">
                 <h4 className="text-emerald-400 font-black uppercase tracking-widest text-[10px] mb-4">Operations</h4>
                 <h2 className="text-3xl font-black mb-8 leading-tight">Deploy New<br/>Personnel</h2>
                 <button 
                   onClick={() => navigate('/register-farmhand')}
-                  className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 active:scale-95"
+                  className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 active:scale-95 shadow-lg shadow-emerald-900/20"
                 >
                   <UserPlus size={20} /> BEGIN DEPLOYMENT
                 </button>
@@ -222,20 +229,23 @@ function FarminstitutDash() {
               <Users size={150} className="absolute -bottom-10 -right-10 text-white/5 rotate-12 group-hover:scale-110 transition-transform" />
             </div>
 
+            {/* Operational Intel: Dynamic Notification Feed */}
             <div className="bg-white rounded-[3rem] p-10 border border-stone-100 shadow-xl">
               <h4 className="font-black uppercase tracking-widest text-[10px] text-stone-400 mb-8 flex items-center gap-2">
                 <Bell size={14} className="text-rose-500" /> Operational Intel
               </h4>
               <div className="space-y-8">
-                {notifications.map((n, i) => (
+                {notifications.length > 0 ? notifications.map((n, i) => (
                   <div key={i} className="flex gap-4">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2" />
+                    <div className={`w-2 h-2 rounded-full shrink-0 mt-2 ${n.type === 'error' ? 'bg-rose-500' : 'bg-emerald-500'}`} />
                     <div>
                       <p className="text-sm font-bold text-stone-700 leading-snug">{n.message}</p>
                       <p className="text-[10px] font-black text-stone-300 uppercase mt-1">{n.timestamp}</p>
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-xs font-bold text-stone-300 text-center py-4 italic">No recent activity recorded.</p>
+                )}
               </div>
             </div>
           </div>
