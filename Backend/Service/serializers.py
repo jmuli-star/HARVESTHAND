@@ -11,7 +11,6 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'icon_name']
 
 class MarketplaceItemSerializer(serializers.ModelSerializer):
-    # Nested category object for the frontend to show names/icons easily
     category = CategorySerializer(read_only=True) 
     # ID field for the frontend to send the integer ID when creating an item
     category_id = serializers.PrimaryKeyRelatedField(
@@ -37,25 +36,42 @@ class MarketplaceItemSerializer(serializers.ModelSerializer):
         return None
     
 # SECTION 2: CART SYSTEM (NEW)
-# ==========================================
-
 class CartItemSerializer(serializers.ModelSerializer):
     """
-    NEW: Manages the active shopping cart for an Institution.
-    Includes the subtotal property from the model.
+    MODIFIED: Explicitly flat-mapping fields for easier frontend calculation 
+    and display within the M-Pesa checkout drawer.
     """
+    # item_details gives the full object if needed
     item_details = MarketplaceItemSerializer(source='item', read_only=True)
+    
+    # Flat fields for quick access in the React frontend
+    item_name = serializers.ReadOnlyField(source='item.name')
+    item_price = serializers.ReadOnlyField(source='item.price')
+    item_image = serializers.SerializerMethodField()
+    
     item_id = serializers.PrimaryKeyRelatedField(
         queryset=MarketplaceItem.objects.all(),
         source='item',
         write_only=True
     )
+    
+    # This pulls from the @property def subtotal(self) in models.py
     subtotal = serializers.ReadOnlyField()
 
     class Meta:
         model = CartItem
-        fields = ['id', 'item_id', 'item_details', 'quantity', 'subtotal', 'created_at']
-        
+        fields = [
+            'id', 'item_id', 'item_name', 'item_price', 'item_image', 
+            'item_details', 'quantity', 'subtotal', 'created_at'
+        ]
+
+    def get_item_image(self, obj):
+        """Helper to get the Cloudinary URL for the item directly in the cart list"""
+        if obj.item.image:
+            return obj.item.image.url
+        return None
+
+
 # MPESA
 
 class MpesaPaymentSerializer(serializers.ModelSerializer):

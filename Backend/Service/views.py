@@ -117,6 +117,7 @@ class CartView(APIView):
             return Response({"message": "Cart updated"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 # --- 3. MPESA STK PUSH (INITIATION) ---
 
 class InitiatePaymentView(APIView):
@@ -124,16 +125,26 @@ class InitiatePaymentView(APIView):
 
     def post(self, request):
         phone = request.data.get('phone')
-        item_id = request.data.get('item_id')
         
-        if not phone or not item_id:
-            return Response({"error": "Phone and Item ID are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone:
+            return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch the item to get the real price
-        item = get_object_or_404(MarketplaceItem, id=item_id)
-        formatted_phone = format_phone_number(phone)
+        # 1. Fetch all items in the user's cart
+        user_cart = CartItem.objects.filter(user=request.user)
         
-        # Prepare M-Pesa Password
+        if not user_cart.exists():
+            return Response({"error": "Your cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+       
+        # We calculate the total by iterating through cart subtotal properties
+        # This ensures we use the MarketplaceItem.price from the database
+        total_amount = sum(item.subtotal for item in user_cart)
+        
+        # M-Pesa STK push usually expects an Integer for the 'Amount' field in Sandbox
+        amount_to_charge = int(total_amount)
+
+        # 3. Prepare M-Pesa Credentials
+        formatted_phone = format_phone_number(phone)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         data_to_encode = settings.MPESA_SHORTCODE + settings.MPESA_PASSKEY + timestamp
         online_password = base64.b64encode(data_to_encode.encode()).decode('utf-8')
@@ -142,32 +153,50 @@ class InitiatePaymentView(APIView):
         if not access_token:
             return Response({"error": "M-Pesa auth failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        # 4. Construct Payload for the entire Cart
         headers = {"Authorization": f"Bearer {access_token}"}
         stk_url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
         
-        # Use actual item price (converted to integer for sandbox usually)
-        amount = int(item.price)
-
         payload = {
             "BusinessShortCode": settings.MPESA_SHORTCODE,
             "Password": online_password,
             "Timestamp": timestamp,
             "TransactionType": "CustomerPayBillOnline",
-            "Amount": amount,
+            "Amount": amount_to_charge,
             "PartyA": formatted_phone,
             "PartyB": settings.MPESA_SHORTCODE,
             "PhoneNumber": formatted_phone,
-            "CallBackURL": settings.MPESA_CALLBACK_URL, # Set this in settings.py
-            "AccountReference": f"Item_{item.id}",
-            "TransactionDesc": f"Purchase {item.name}"
+            "CallBackURL": settings.MPESA_CALLBACK_URL,
+            "AccountReference": f"Cart_{request.user.id}", # Reference the User ID
+            "TransactionDesc": f"Payment for {user_cart.count()} items in cart"
         }
 
         try:
-            response = requests.post(stk_url, json=payload, headers=headers)
-            return Response(response.json(), status=response.status_code)
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Log the attempt in MpesaCalls before sending
+            MpesaCalls.objects.create(
+                ip_address=request.META.get('REMOTE_ADDR', '0.0.0.0'),
+                caller=str(request.user),
+                conversation_id=timestamp,
+                content=f"Initiating STK Push for KES {amount_to_charge}"
+            )
 
+            response = requests.post(stk_url, json=payload, headers=headers)
+            res_data = response.json()
+
+            # If Safaricom accepted the request (ResponseCode 0)
+            if res_data.get("ResponseCode") == "0":
+                return Response({
+                    "message": "STK Push sent to phone",
+                    "checkout_request_id": res_data.get("CheckoutRequestID"),
+                    "amount": amount_to_charge
+                }, status=status.HTTP_200_OK)
+            
+            return Response(res_data, status=response.status_code)
+
+        except Exception as e:
+            logger.error(f"STK Push Error: {str(e)}")
+            return Response({"error": "Failed to connect to Safaricom"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 # --- 4. MPESA CALLBACK (WEBHOOK) ---
 
 @csrf_exempt

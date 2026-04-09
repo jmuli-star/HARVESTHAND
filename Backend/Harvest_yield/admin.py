@@ -2,11 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent
 
-# ==========================================
 # SECTION 1: INLINES
-# ==========================================
-
-# --- NEW: Added Correspondent Inline ---
 class FarmCorrespondentInline(admin.StackedInline):
     model = FarmCorrespondent
     can_delete = False
@@ -22,10 +18,8 @@ class FarmHandInline(admin.StackedInline):
     fk_name = 'user'
     extra = 0
 
-# ==========================================
-# SECTION 2: USER ADMINISTRATION
-# ==========================================
 
+# SECTION 2: USER ADMINISTRATION
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     # Added 'associated_institution' to display who the staff reports to
@@ -56,10 +50,7 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
 
-# ==========================================
 # SECTION 3: OPERATIONAL MODELS
-# ==========================================
-
 @admin.register(Farm)
 class FarmAdmin(admin.ModelAdmin):
     # Displays the full management chain: Institution -> Correspondent -> Farmhand
@@ -97,6 +88,10 @@ class BatchAdmin(admin.ModelAdmin):
         ('Harvest & Logistics', {'fields': ('quantity_kg', 'planted_date', 'harvest_date')}),
         ('System Metadata', {'fields': ('id', 'qr_generated', 'created_at')}),
     )
+    
+    def qr_status(self, obj):
+        return "✅ Generated" if obj.qr_generated else "❌ Pending"
+    qr_status.short_description = 'QR Status'
 
 @admin.register(TreatmentLog)
 class TreatmentLogAdmin(admin.ModelAdmin):

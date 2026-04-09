@@ -60,12 +60,11 @@ class User(AbstractUser):
     def __str__(self):
         return f"{self.email} ({self.role})"
 
-# ==========================================
+
 # SECTION 2: STAFF PROFILE MODELS
-# ==========================================
+
 
 class FarmHand(models.Model):
-    # --- ADDED: null=True, blank=True to resolve migration conflict ---
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -86,16 +85,13 @@ class FarmCorrespondent(models.Model):
     )
     region_assigned = models.CharField(max_length=200, blank=True)
 
-# ==========================================
 # SECTION 3: FARM OPERATIONS
-# ==========================================
-
 class Farm(models.Model):
     name = models.CharField(max_length=200)
     location = models.CharField(max_length=300)
     gps_coordinates = models.CharField(max_length=50, blank=True)
     
-    # --- ADDED: null=True for smooth migration ---
+   
     institution = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -117,17 +113,28 @@ class Farm(models.Model):
         related_name='assigned_farms'
     )
     created_at = models.DateTimeField(auto_now_add=True)
-
     @property
     def total_yield(self):
-        # Keeps logic for Yield calculations
-        return self.farm_batches.aggregate(models.Sum('quantity_kg'))['quantity_kg__sum'] or 0
+        """Calculates total kg produced by all FarmHands on this farm."""
+        return self.farm_batches.aggregate(Sum('quantity_kg'))['quantity_kg__sum'] or 0
 
-    def __str__(self):
-        return self.name
+    @property
+    def yield_performance(self):
+        """
+        Dynamically calculates a performance percentage.
+        Logic: (Current Total Yield / Target Yield) * 100
+        """
+        target_yield = 1000  # This could be a field on the Farm model
+        current = self.total_yield
+        percentage = (current / target_yield) * 100
+        return min(round(percentage, 1), 100) # Capped at 100%
+
+    @property
+    def recent_activity(self):
+        """Fetches the last 3 batches entered by FarmHands."""
+        return self.farm_batches.select_related('farmhand__user').order_by('-created_at')[:3]
 
 class Batch(models.Model):
-    # --- ADDED: null=True for smooth migration ---
     farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='farm_batches', null=True, blank=True)
     farmhand = models.ForeignKey(FarmHand, on_delete=models.SET_NULL, null=True, blank=True)
     crop_name = models.CharField(max_length=150)
@@ -144,9 +151,7 @@ class TreatmentLog(models.Model):
     action_type = models.CharField(max_length=50)
     notes = models.TextField(blank=True)
 
-# ==========================================
 # SECTION 4: SIGNALS
-# ==========================================
 
 @receiver(post_save, sender=User)
 def create_user_profiles(sender, instance, created, **kwargs):

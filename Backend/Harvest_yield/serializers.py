@@ -59,9 +59,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password2')
         return User.objects.create_user(**validated_data)
 
-# ==========================================
+
 # SECTION 2: USER & PERSONNEL SERIALIZERS
-# ==========================================
+
 
 class UserListSerializer(serializers.ModelSerializer):
     """Directory view of users, showing their hierarchy links."""
@@ -85,6 +85,26 @@ class FarmHandSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}".strip() or obj.user.email.split('@')[0]
+    
+class InstitutionPersonnelSerializer(serializers.ModelSerializer):
+    """
+    Tailored for the 'Personnel' tab in the Institution Dashboard.
+    Flattens data so the React table can 'draw' it easily.
+    """
+    full_name = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'full_name', 'role', 'status', 'phone']
+
+    def get_full_name(self, obj):
+        name = f"{obj.first_name} {obj.last_name}".strip()
+        return name if name else obj.email.split('@')[0]
+
+    def get_status(self, obj):
+        # Logic: If they have logged a batch in the last 24 hours, they are 'Active'
+        return "Active" if obj.is_active else "Inactive"
 
 # --- ADDED: Serializer for FarmCorrespondent Profile ---
 class FarmCorrespondentSerializer(serializers.ModelSerializer):
@@ -93,9 +113,9 @@ class FarmCorrespondentSerializer(serializers.ModelSerializer):
         model = FarmCorrespondent
         fields = ['id', 'email', 'region_assigned']
 
-# ==========================================
+
 # SECTION 3: OPERATIONAL SERIALIZERS
-# ==========================================
+
 
 class FarmSerializer(serializers.ModelSerializer):
     """Links physical farms to the owners (institutions) and staff (hands/correspondents)."""
@@ -135,9 +155,7 @@ class TreatmentLogSerializer(serializers.ModelSerializer):
         model = TreatmentLog
         fields = '__all__'
 
-# ==========================================
 # SECTION 4: ADMINISTRATIVE & DEPLOYMENT
-# ==========================================
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
     """Exclusive to Superadmins for creating new Admin accounts."""

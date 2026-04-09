@@ -1,6 +1,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Category, MarketplaceItem, MpesaCalls, MpesaCallBacks, MpesaPayment, Order , CartItem
+from django.db.models import Sum, F
+from .models import (
+    Category, MarketplaceItem, MpesaCalls, 
+    MpesaCallBacks, MpesaPayment, Order, CartItem
+)
 
 # --- 1. MARKETPLACE ADMIN ---
 
@@ -19,7 +23,7 @@ class MarketplaceItemAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description', 'provider__username')
     list_editable = ('price', 'stock_quantity', 'is_active')
     readonly_fields = ('get_image_large', 'created_at', 'updated_at')
-    autocomplete_fields = ['category', 'provider'] # Helpful if you have many users/categories
+    autocomplete_fields = ['category', 'provider'] 
 
     def get_image(self, obj):
         if obj.image:
@@ -35,15 +39,31 @@ class MarketplaceItemAdmin(admin.ModelAdmin):
 
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
-    """Allows admins to see active shopping carts across the platform"""
+    """
+    MODIFIED: Added a total value tracker to see how much potential 
+    revenue is sitting in active user carts.
+    """
     list_display = ('user', 'item', 'quantity', 'get_subtotal', 'created_at')
-    list_filter = ('created_at',)
-    search_fields = ('user__email', 'item__name')
+    list_filter = ('user', 'created_at')
+    search_fields = ('user__username', 'user__email', 'item__name')
     readonly_fields = ('created_at', 'updated_at')
 
     def get_subtotal(self, obj):
-        return f"KES {obj.subtotal:,}"
+        # Uses the model property to display formatted KES
+        return format_html('<b>KES {:,.2f}</b>', obj.subtotal)
     get_subtotal.short_description = 'Subtotal'
+
+    # Logic to show a summary in the admin list view for the whole cart
+    def changelist_view(self, request, extra_context=None):
+        # Calculate the total value of all items currently in all carts
+        cart_total = CartItem.objects.aggregate(
+            total=Sum(F('item__price') * F('quantity'))
+        )['total'] or 0
+        
+        extra_context = extra_context or {}
+        extra_context['cart_total_value'] = cart_total
+        return super().changelist_view(request, extra_context=extra_context)
+
 # --- 2. MPESA LOGGING ADMIN ---
 
 @admin.register(MpesaCalls)
@@ -62,21 +82,28 @@ class MpesaCallBacksAdmin(admin.ModelAdmin):
 
 @admin.register(MpesaPayment)
 class MpesaPaymentAdmin(admin.ModelAdmin):
+    """
+    MODIFIED: Enhanced lookup to link payments to specific users and items 
+    if the metadata is available.
+    """
     list_display = ('reference', 'first_name', 'last_name', 'amount', 'phone_number', 'created_at')
     list_filter = ('created_at', 'type')
     search_fields = ('reference', 'phone_number', 'first_name', 'last_name')
-    # Fields should be read-only to maintain financial integrity
+    # Strict read-only for audit integrity
     readonly_fields = ('user', 'item', 'amount', 'reference', 'first_name', 'middle_name', 'last_name', 
                        'phone_number', 'organization_balance', 'description', 'type', 'created_at')
 
 # --- 3. ORDER MANAGEMENT ADMIN ---
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    # Maps fulfillment status and links back to the M-Pesa transaction
-    list_display = ('id', 'item', 'get_payment_ref', 'quantity', 'status', 'created_at')
-    list_filter = ('status', 'created_at')
+    """
+    MODIFIED: Orders are the bridge between the Marketplace and Fulfillment.
+    Editable status allows admin to move items from 'Pending' to 'Shipped'.
+    """
+    list_display = ('id', 'item', 'get_customer', 'get_payment_ref', 'quantity', 'status', 'created_at')
+    list_filter = ('status', 'created_at', 'item__category')
     list_editable = ('status',)
-    search_fields = ('item__name', 'payment__reference', 'payment__first_name')
+    search_fields = ('item__name', 'payment__reference', 'payment__first_name', 'payment__phone_number')
     readonly_fields = ('payment', 'item', 'quantity', 'created_at')
 
     def get_payment_ref(self, obj):
@@ -84,3 +111,9 @@ class OrderAdmin(admin.ModelAdmin):
             return obj.payment.reference
         return "N/A"
     get_payment_ref.short_description = 'M-Pesa Ref'
+
+    def get_customer(self, obj):
+        if obj.payment:
+            return f"{obj.payment.first_name} ({obj.payment.phone_number})"
+        return "Unknown"
+    get_customer.short_description = 'Customer'

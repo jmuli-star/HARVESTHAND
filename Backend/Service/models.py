@@ -62,7 +62,7 @@ class MarketplaceItem(BaseModel):
         return f"[{self.category.name}] {self.name}"
 
 # SECTION 3: CART SYSTEM (FOR CHECKOUT)
-# --- NEW: Added CartItem to manage the "pre-payment" phase ---
+
 class CartItem(BaseModel):
     """
     Temporary storage before M-Pesa trigger.

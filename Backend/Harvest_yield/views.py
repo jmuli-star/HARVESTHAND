@@ -1,4 +1,6 @@
 from django.shortcuts import render , get_object_or_404 , redirect
+from django.conf import settings
+from decouple import config
 from django.contrib.auth import get_user_model
 from rest_framework import viewsets ,status , generics, permissions
 from django.db import models as django_models
@@ -7,7 +9,10 @@ from rest_framework.decorators import action , api_view , permission_classes , a
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from .models import *
 from .serializers import *
 from .permissions import *
@@ -15,25 +20,71 @@ from django.db.models import Sum, Avg, Count
 
 
 # Create your views here.
-#google auth
-@api_view(['GET'])
-@authentication_classes([SessionAuthentication])
+class GoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token')
+        
+        # Accessing the ID from settings.py (which loads from .env)
+        GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID 
+
+        try:
+            # Verify the token
+            idinfo = id_token.verify_oauth2_token(
+                token, 
+                google_requests.Request(), 
+                GOOGLE_CLIENT_ID
+            )
+
+            email = idinfo['email']
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': email, 
+                    'first_name': idinfo.get('given_name', ''), 
+                    'last_name': idinfo.get('family_name', ''),
+                    'role': 'user'
+                }
+            )
+
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'access_token': str(refresh.access_token),
+                'refresh_token': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'role': user.role
+                }
+            }, status=status.HTTP_200_OK)
+
+        except ValueError:
+            return Response({'error': 'Invalid Google Token'}, status=status.HTTP_400_BAD_REQUEST)
+#google auth@api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def social_token_exchange(request):
+    """
+    This view is triggered after a successful Google OAuth redirect.
+    It converts the Django Session into JWT tokens for React.
+    """
     user = request.user
-    refresh = MyTokenObtainPairSerializer.get_token(user)
     
-    # 1. Define your React Frontend URL
-    # Use # (fragment) instead of ? (query) for better security with tokens
-    frontend_url = "http://localhost:5173/#"
-    # 2. Attach the tokens to the URL
+    # Generate SimpleJWT tokens for the user
+    refresh = RefreshToken.for_user(user)
+    
+    # Define your React Dashboard URL
+    # Vite usually runs on 5173
+    frontend_base_url = "http://localhost:5173/dashboard/user" 
+    
+    # Attach tokens as URL fragments (cleaner than query params for SPAs)
     redirect_url = (
-        f"{frontend_url}access={str(refresh.access_token)}"
+        f"{frontend_base_url}#access={str(refresh.access_token)}"
         f"&refresh={str(refresh)}"
-        f"&role={user.role}"
+        f"&role={getattr(user, 'role', 'user')}"
     )
     
-    # 3. Send the user back to React!
     return redirect(redirect_url)
 
 # Harvest_yield/views.py
@@ -170,8 +221,6 @@ class BatchListCreateView(generics.ListCreateAPIView):
     serializer_class = BatchSerializer
     permission_classes = [permissions.IsAuthenticated]
     
-    # Harvest_yield/views.py
-    # Harvest_yield/views.py
 
 def perform_create(self, serializer):
     from .models import FarmHand, Farm
@@ -322,119 +371,90 @@ class IsInstitutionUser(permissions.BasePermission):
 # --- 2. INSTITUTION STATS VIEW ---
 class InstitutionStatsView(APIView):
     """
-    Provides the 4 main card metrics for the Institution Dashboard.
-    Logic: Filters everything by the logged-in Institution's ID.
+    Main metrics for Institution Dashboard.
+    Draws dynamic data from FarmHand batch entries.
     """
-    permission_classes = [IsAuthenticated] # Using IsAuthenticated for initial testing
+    permission_classes = [IsAuthenticated] 
 
     def get(self, request):
-        try:
-            user = request.user
-            
-            # --- 1. Managed Farms ---
-            # Counts farms where this user is the primary Institution
-            managed_farms = Farm.objects.filter(institution=user)
-            farms_count = managed_farms.count()
+        user = request.user
+        managed_farms = Farm.objects.filter(institution=user)
+        
+        # 1. Managed Farms Count
+        farms_count = managed_farms.count()
 
-            # --- 2. Active Personnel (FIXED LOGIC) ---
-            # We look for FarmHands who are assigned to any farm owned by this institution.
-            # Using the related_name 'assigned_farms' defined in our models.py.
-            active_personnel_count = FarmHand.objects.filter(
-                assigned_farms__institution=user
-            ).distinct().count()
+        # 2. Dynamic Personnel Count (Everyone linked to this Institution)
+        staff_count = User.objects.filter(associated_institution=user).count()
 
-            # --- 3. Yield Index (Aggregation) ---
-            # Summing quantity_kg across all batches linked to this institution's farms
-            total_yield_data = Batch.objects.filter(
-                farm__institution=user
-            ).aggregate(total=Sum('quantity_kg'))
-            
-            total_yield = total_yield_data['total'] or 0
-            # Formatted string for the "Yield Performance" card
-            yield_index_label = f"{total_yield:,} kg" 
+        # 3. Dynamic Yield Index (Live sum of all FarmHand batches on Institution farms)
+        total_yield = Batch.objects.filter(farm__institution=user).aggregate(total=Sum('quantity_kg'))['total'] or 0
+        
+        # 4. Pending Reports (Batches without QR codes)
+        pending = Batch.objects.filter(farm__institution=user, qr_generated=False).count()
 
-            # --- 4. Pending Reports ---
-            # Count batches where QR hasn't been generated yet
-            pending_reports = Batch.objects.filter(
-                farm__institution=user, 
-                qr_generated=False
-            ).count()
+        return Response({
+            "managed_farms_count": farms_count,
+            "active_personnel": staff_count,
+            "avg_yield": f"{total_yield:,} kg",
+            "pending_reports": pending
+        })
 
-            stats_data = {
-                "managed_farms_count": farms_count,
-                "active_personnel": active_personnel_count,
-                "avg_yield": yield_index_label,
-                "pending_reports": pending_reports
-            }
-            
-            return Response(stats_data, status=status.HTTP_200_OK)
+class InstitutionPersonnelListView(APIView):
+    """
+    NEW: Resolves the 404 error in the frontend.
+    Returns all users linked to the logged-in Institution.
+    """
+    permission_classes = [IsAuthenticated]
 
-        except Exception as e:
-            # This will help you see the error in the console if it happens again
-            print(f"Error in InstitutionStatsView: {str(e)}")
-            return Response(
-                {"error": "Internal Server Error", "details": str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-# --- 3. INSTITUTION FARMS LIST VIEW ---
+    def get(self, request):
+        # Fetch all staff linked via the 'associated_institution' ForeignKey
+        staff = User.objects.filter(associated_institution=request.user)
+        
+        data = [{
+            "id": p.id,
+            "email": p.email,
+            "username": p.first_name if p.first_name else p.email.split('@')[0],
+            "role": p.get_role_display() if hasattr(p, 'get_role_display') else p.role,
+        } for p in staff]
+        
+        return Response(data)
+
 class InstitutionFarmListView(viewsets.ReadOnlyModelViewSet):
     """
-    Provides the 'Managed Farm Status' table data.
-    Logic: Only returns farms owned by the logged-in institution.
+    Returns specific status for the 'Managed Estate Units' table.
     """
-    serializer_class = FarmSerializer
-    permission_classes = [IsInstitutionUser]
-
-    def get_queryset(self):
-        # Only show farms where this user is the Institution owner
-        return Farm.objects.filter(institution=self.request.user).select_related('farmhand__user', 'correspondent')
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        
-        # Customizing the response to match the Frontend Table exactly
+    permission_classes = [IsAuthenticated]
+    
+    def list(self, request):
+        queryset = Farm.objects.filter(institution=request.user)
         data = []
         for farm in queryset:
-            # Logic: Determine status based on recent treatment logs or batch data
-            # (Mocking 'Optimal' logic for now)
-            status_label = "Optimal" 
-            
-            # Logic: Calculate yield per farm
-            farm_yield = Batch.objects.filter(farm=farm).aggregate(Sum('quantity_kg'))['quantity_kg__sum'] or 0
-            
+            # Dynamic calculation of yield per specific farm
+            farm_yield = Batch.objects.filter(farm=farm).aggregate(total=Sum('quantity_kg'))['total'] or 0
+            # Simple logic for % performance (yield vs target of 1000kg)
+            perf_index = min(int((farm_yield / 1000) * 100), 100) if farm_yield > 0 else 0
+
             data.append({
                 "id": farm.id,
                 "name": farm.name,
                 "lead_name": farm.correspondent.email if farm.correspondent else "Unassigned",
-                "status": status_label,
-                "yield_performance": int(farm_yield) # Returned as number for the % in frontend
+                "yield_performance": perf_index
             })
-            
         return Response(data)
 
-# --- 4. INSTITUTION NOTIFICATION VIEW ---
 class InstitutionNotificationView(APIView):
-    """
-    Provides the 'Operational Intel' sidebar data.
-    Since you're not using a full intelligence system, we generate 
-    these based on recent Batch and FarmHand activity.
-    """
-    permission_classes = [IsInstitutionUser]
-
+    """Operational Intel based on recent Batch creations."""
+    permission_classes = [IsAuthenticated]
     def get(self, request):
-        user = request.user
-        # Logic: Get the 5 most recent batches created in this institution's network
-        recent_batches = Batch.objects.filter(farm__institution=user).order_by('-created_at')[:5]
-        
-        notifications = []
-        for batch in recent_batches:
-            notifications.append({
-                "message": f"New batch '{batch.crop_name}' recorded at {batch.farm.name}",
-                "type": "info",
-                "timestamp": batch.created_at.strftime("%I:%M %p")
-            })
-            
+        recent = Batch.objects.filter(farm__institution=request.user).order_by('-created_at')[:5]
+        notifications = [{
+            "message": f"Harvest entry: {b.quantity_kg}kg of {b.crop_name} at {b.farm.name}",
+            "type": "info",
+            "timestamp": b.created_at.strftime("%I:%M %p")
+        } for b in recent]
         return Response(notifications)
+
+# =================================
 class UserProfileView(APIView):
     """
     Handles fetching and updating the logged-in user's profile details.
