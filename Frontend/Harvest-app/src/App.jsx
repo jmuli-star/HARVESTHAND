@@ -1,7 +1,7 @@
 import react from 'react'
 import Homepage from './Components/Homepage'
 import Home from './Pages/Home'
-import Logintoogle from './Components/Logintoogle'
+import Logintoogle from './components/Logintoogle'
 import Forms from './Pages/Forms'
 import Contactus from './Pages/Contactus'
 import RegisterUser from './Components/CompleteRegister'
@@ -9,12 +9,13 @@ import Aboutus from './Pages/Aboutus'
 import Axiosfetch from './Components/Axiosfetch'
 import ProtectedRoute from './Components/ProtectRoute'
 import UserDash from './Pages/UserDash'
-import FarminstitutDash from './Pages/FarminstitutDash'
+import FarminstitutDash from './pages/FarminstitutDash'
 import FarmhandDash from './Pages/FarmhandDash'
 import AdminDash from './Pages/AdminDash'
 import RegisterAdmin from './Components/RegisterAdmin'
+import ResetPasswordConfirm from './components/PasswordReset'
 import Navbar from './Components/Navbar'
-import Service from './Pages/Service'
+import Service from './pages/Service'
 import { Route,Routes } from 'react-router-dom'
 import FarmcorrsDash from './Pages/FarmcorrsDash'
 
@@ -30,6 +31,7 @@ function App() {
     <Route path='/register-admin' element={<RegisterUser/>}/>
     <Route path='/register-correspondent' element={<RegisterUser/>}/>
     <Route path='/register-institution' element={<RegisterUser/>}/>
+    <Route path="/reset-password/:uid/:token" element={<ResetPasswordConfirm />} />
 
     <Route path='/register-farmhand' element={<RegisterUser/>}/>
     <Route path='/login' element={<Logintoogle/>}/>

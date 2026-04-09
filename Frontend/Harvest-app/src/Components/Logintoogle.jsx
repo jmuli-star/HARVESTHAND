@@ -2,13 +2,14 @@ import axios from 'axios';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  LogIn, UserPlus, Leaf, Globe, ShieldCheck, Loader2 
+  LogIn, UserPlus, Leaf, Globe, ShieldCheck, Loader2, KeyRound, ArrowLeft 
 } from 'lucide-react';
 
 const API_BASE = "http://127.0.0.1:8000/api/v1";
 
 function Logintoogle() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false); // NEW: State for reset flow
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -20,25 +21,20 @@ function Logintoogle() {
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
-  // --- GOOGLE OAUTH HASH HANDLING ---
-  // This effect listens for the redirect from your social_token_exchange view
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('access=')) {
       const params = {};
-      // Parsing the #access=xyz&refresh=abc&role=admin fragment
       hash.substring(1).split('&').forEach(pair => {
         const [key, value] = pair.split('=');
         params[key] = value;
       });
 
       if (params.access) {
-        // Save tokens to localStorage so Service.js can find them
         localStorage.setItem('access_token', params.access);
         localStorage.setItem('refresh_token', params.refresh || '');
         localStorage.setItem('user_role', params.role || 'user');
 
-        // Clean up the URL fragment for a professional look
         window.history.replaceState(null, null, window.location.pathname);
 
         const roleRoutes = {
@@ -62,9 +58,6 @@ function Logintoogle() {
   };
 
   const handleGoogleAuth = () => {
-    // This triggers the Django AllAuth flow. 
-    // Django will handle Google, then hit your social_token_exchange view, 
-    // which redirects back here with the #access= fragment.
     window.location.href = `http://127.0.0.1:8000/accounts/google/login/`;
   };
 
@@ -89,7 +82,6 @@ function Logintoogle() {
         password: formData.password,
       });
       
-      // Match key names to your SimpleJWT response (usually 'access' and 'refresh')
       localStorage.setItem('access_token', res.data.access);
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
@@ -123,7 +115,6 @@ function Logintoogle() {
 
       setMessage("Account created successfully! 🎉");
       
-      // If your register view returns tokens immediately
       if (res.data.access) {
         localStorage.setItem('access_token', res.data.access);
         localStorage.setItem('user_role', res.data.user.role);
@@ -141,6 +132,23 @@ function Logintoogle() {
     }
   };
 
+  // --- NEW: Reset Password Logic ---
+  const handleResetRequest = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    try {
+      await axios.post(`${API_BASE}/auth/password-reset/`, {
+        email: formData.email
+      });
+      setMessage("Success! Check your email for reset instructions. 📧");
+    } catch (err) {
+      setMessage(err.response?.data?.email?.[0] || "Could not find an account with that email.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDecline = () => {
     localStorage.clear();
     navigate('/');
@@ -150,7 +158,6 @@ function Logintoogle() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full">
         
-        {/* Brand Header */}
         <div className="flex items-center justify-center gap-3 mb-10">
           <div className="w-14 h-14 bg-emerald-600 rounded-3xl flex items-center justify-center shadow-xl">
             <Leaf className="text-white w-9 h-9" />
@@ -162,50 +169,59 @@ function Logintoogle() {
 
         <div className="bg-white rounded-[2.75rem] shadow-2xl border border-emerald-100 overflow-hidden">
           
-          {/* Toggle Tab */}
-          <div className="flex m-4 bg-emerald-50 rounded-[2rem] p-1">
-            <button
-              onClick={() => setIsLogin(true)}
-              className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
-              }`}
-            >
-              <LogIn size={18} /> Login
-            </button>
-            <button
-              onClick={() => setIsLogin(false)}
-              className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                !isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
-              }`}
-            >
-              <UserPlus size={18} /> Register
-            </button>
-          </div>
+          {/* Toggle Tab - Hidden when in Reset Mode */}
+          {!isForgotPassword && (
+            <div className="flex m-4 bg-emerald-50 rounded-[2rem] p-1">
+              <button
+                onClick={() => { setIsLogin(true); setMessage(""); }}
+                className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
+                }`}
+              >
+                <LogIn size={18} /> Login
+              </button>
+              <button
+                onClick={() => { setIsLogin(false); setMessage(""); }}
+                className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  !isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
+                }`}
+              >
+                <UserPlus size={18} /> Register
+              </button>
+            </div>
+          )}
 
-          <div className="px-8 pb-8">
+          <div className="px-8 pb-8 pt-6">
             <h2 className="text-3xl font-bold text-center text-emerald-900 mb-8">
-              {isLogin ? 'Welcome back to the field' : 'Join the farm family'}
+              {isForgotPassword 
+                ? 'Reset your password' 
+                : isLogin ? 'Welcome back to the field' : 'Join the farm family'}
             </h2>
 
-            {/* Google Button - Hits the AllAuth endpoint */}
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              className="w-full py-4 bg-white border-2 border-stone-200 rounded-3xl flex items-center justify-center gap-4 font-semibold text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 transition-all active:scale-95 mb-8"
+            {!isForgotPassword && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  className="w-full py-4 bg-white border-2 border-stone-200 rounded-3xl flex items-center justify-center gap-4 font-semibold text-stone-700 hover:border-emerald-300 hover:bg-emerald-50 transition-all active:scale-95 mb-8"
+                >
+                  <Globe className="text-blue-500" size={22} />
+                  {isLogin ? 'Sign in with Google' : 'Register with Google'}
+                </button>
+
+                <div className="relative text-center mb-8">
+                  <hr className="border-emerald-100" />
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 text-xs font-bold text-emerald-400 tracking-widest uppercase">
+                    Or continue with email
+                  </span>
+                </div>
+              </>
+            )}
+
+            <form 
+                onSubmit={isForgotPassword ? handleResetRequest : (isLogin ? handleLogin : handleRegister)} 
+                className="space-y-6"
             >
-              <Globe className="text-blue-500" size={22} />
-              {isLogin ? 'Sign in with Google' : 'Register with Google'}
-            </button>
-
-            <div className="relative text-center mb-8">
-              <hr className="border-emerald-100" />
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 text-xs font-bold text-emerald-400 tracking-widest uppercase">
-                Or continue with email
-              </span>
-            </div>
-
-            <form onSubmit={isLogin ? handleLogin : handleRegister} className="space-y-6">
-              {/* Email Input */}
               <div>
                 <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Email Address</label>
                 <input
@@ -219,22 +235,34 @@ function Logintoogle() {
                 />
               </div>
 
-              {/* Password Input */}
-              <div>
-                <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Password</label>
-                <input
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
-                />
-              </div>
+              {!isForgotPassword && (
+                <div>
+                  <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Password</label>
+                  <input
+                    name="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
+                  />
+                  {/* Forgot Password Link */}
+                  {isLogin && (
+                    <div className="flex justify-end mt-2">
+                      <button
+                        type="button"
+                        onClick={() => { setIsForgotPassword(true); setMessage(""); }}
+                        className="text-xs font-bold text-emerald-600 hover:text-amber-600 transition-colors"
+                      >
+                        Forgot Password?
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
-              {/* Registration Specific Fields */}
-              {!isLogin && (
+              {!isLogin && !isForgotPassword && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
                   <div>
                     <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Confirm Password</label>
@@ -248,7 +276,7 @@ function Logintoogle() {
                       className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
                     />
                   </div>
-
+                  {/* ... other registration fields remain the same ... */}
                   <div>
                     <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Farm / Organization</label>
                     <input
@@ -260,7 +288,6 @@ function Logintoogle() {
                       className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Professional Role</label>
                     <select
@@ -273,7 +300,7 @@ function Logintoogle() {
                       <option value="farmhand">Farm Hand</option>
                       <option value="farmcorrespondent">Farm Correspondent</option>
                       <option value="farminstitution">Farming Institution</option>
-                      <option value="admin">Administrator</option>
+
                     </select>
                   </div>
                 </div>
@@ -286,17 +313,28 @@ function Logintoogle() {
               >
                 {loading ? (
                   <Loader2 className="animate-spin" size={24} />
+                ) : isForgotPassword ? (
+                  <><KeyRound size={20} /> Send Reset Link</>
                 ) : isLogin ? (
                   <>Login to HarvestHub</>
                 ) : (
                   <>Create My Account 🌱</>
                 )}
               </button>
+
+              {isForgotPassword && (
+                <button
+                  type="button"
+                  onClick={() => { setIsForgotPassword(false); setMessage(""); }}
+                  className="w-full flex items-center justify-center gap-2 text-stone-500 font-bold text-sm hover:text-emerald-700 transition-colors"
+                >
+                  <ArrowLeft size={16} /> Back to Login
+                </button>
+              )}
             </form>
 
-            {/* Notification Message */}
             {message && (
-              <div className={`mt-8 p-4 rounded-3xl text-sm font-medium flex items-center gap-3 border animate-bounce ${
+              <div className={`mt-8 p-4 rounded-3xl text-sm font-medium flex items-center gap-3 border animate-in fade-in zoom-in ${
                 message.toLowerCase().includes('success') || message.includes('Welcome') || message.includes('created')
                   ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                   : 'bg-rose-100 text-rose-700 border-rose-200'
