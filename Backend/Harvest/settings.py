@@ -123,6 +123,10 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
 ACCOUNT_EMAIL_REQUIRED = True
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Password Reset Settings
+PASSWORD_RESET_TIMEOUT = 3600  # 1 hour
+#actual React URL for the reset confirmation page.
+URL_FRONTEND = "http://localhost:5173"
 
 #  Registration & Social Account Flow ---
 

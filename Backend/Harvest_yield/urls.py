@@ -5,20 +5,18 @@ from .views import (
     FarmViewSet, UserRoleViewSet, UserListViewSet,
     # Auth Views
     RegisterView, CustomTokenObtainPairView, GoogleLoginView, social_token_exchange,
-    UserProfileView,
+    UserProfileView, PasswordResetRequestView,  # Added Reset View
     # Institution Views
     InstitutionStatsView, InstitutionNotificationView, 
     InstitutionPersonnelListView, InstitutionFarmListView,
     # Admin Views
-    AdminDashboardStatsView, AdminRegistrationView,
+    AdminDashboardStatsView, AdminRegistrationView,PasswordResetConfirmView,
     # Production Views
     BatchListCreateView
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
-# ==========================================
-# SECTION 1: ROUTER CONFIGURATION
-# ==========================================
+# ROUTER CONFIGURATION
 router = DefaultRouter()
 
 # Standard Operational ViewSets
@@ -35,9 +33,7 @@ urlpatterns = [
     # Router URLs (Standard CRUD)
     path('', include(router.urls)),
     
-    # ==========================================
     # SECTION 2: AUTHENTICATION & IDENTITY
-    # ==========================================
     # Google OAuth & Token Exchange
     path('auth/google-login/', GoogleLoginView.as_view(), name='google_login_api'),
     path('auth/social-exchange/', social_token_exchange, name='social_token_exchange'),
@@ -50,21 +46,18 @@ urlpatterns = [
     # Profile management (GET for fetch, PATCH for update)
     path('auth/user/', UserProfileView.as_view(), name='user-profile'),
 
-    # ==========================================
+    # NEW: Forgot Password Flow
+    path('auth/password-reset/', PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('auth/password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     # SECTION 3: INSTITUTION DASHBOARD (HIERARCHY)
-    # ==========================================
     # High-level metrics for Institution users
     path('institution/stats/', InstitutionStatsView.as_view(), name='institution-stats'),
-    
     # Staff list (Linked via associated_institution)
     path('institution/personnel/', InstitutionPersonnelListView.as_view(), name='institution-personnel'),
-    
     # Feed of recent harvest activities
     path('institution/notifications/', InstitutionNotificationView.as_view(), name='institution-notifications'),
 
-    # ==========================================
     # SECTION 4: ADMIN DASHBOARD (SYSTEM-WIDE)
-    # ==========================================
     # System stats and user overrides
     path('admin/stats/', AdminDashboardStatsView.as_view(), name='admin-dashboard-stats'),
     path('admin/stats/<int:pk>/', AdminDashboardStatsView.as_view(), name='admin-stats-detail'),
@@ -72,9 +65,7 @@ urlpatterns = [
     # Dedicated endpoint for Superadmins to provision new Admins
     path('admin/create-user/', AdminRegistrationView.as_view(), name='admin-create'),
 
-    # ==========================================
     # SECTION 5: FIELD PRODUCTION & HARVEST
-    # ==========================================
     # Logic for FarmHands to record batches and view logs
     path('batches/', BatchListCreateView.as_view(), name='batch_list_create'),
 ]

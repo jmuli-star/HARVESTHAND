@@ -1,14 +1,12 @@
 from rest_framework import serializers
-from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent
+from django.conf import settings
+from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent 
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from django.contrib.auth.forms import PasswordResetForm
 User = get_user_model()
 
-# ==========================================
-# SECTION 1: SYSTEM & AUTH SERIALIZERS
-# ==========================================
-
+# SYSTEM & AUTH SERIALIZERS
 class DashboardStatsSerializer(serializers.Serializer):
     """Structures aggregated data from UserManager.get_dashboard_stats()"""
     total_users = serializers.IntegerField()
@@ -59,6 +57,28 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.pop('password2')
         return User.objects.create_user(**validated_data)
 
+#Password Reset Serializers ---
+
+class PasswordResetSerializer(serializers.Serializer):
+    """Handles the initial request for a password reset email."""
+    email = serializers.EmailField()
+    password_reset_form_class = PasswordResetForm
+
+    def validate_email(self, value):
+        if not User.objects.filter(email=value).exists():
+            # Security Note: Often better to return success even if email doesn't exist
+            # but for internal tools, a clear error is often preferred.
+            raise serializers.ValidationError("No account found with this email.")
+        return value
+
+    def save(self):
+        request = self.context.get('request')
+        opts = {
+            'use_https': request.is_secure(),
+            'from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@harvesthand.com'),
+            'request': request,
+        }
+        self.password_reset_form_class().save(**opts)
 
 # SECTION 2: USER & PERSONNEL SERIALIZERS
 

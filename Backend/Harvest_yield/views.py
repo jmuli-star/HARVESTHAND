@@ -2,6 +2,10 @@ from django.shortcuts import render , get_object_or_404 , redirect
 from django.conf import settings
 from decouple import config
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.utils.http import urlsafe_base64_encode  ,urlsafe_base64_decode # Encodes the ID
+from django.utils.encoding import force_bytes , force_str
+from django.contrib.auth.tokens import default_token_generator
 from rest_framework import viewsets ,status , generics, permissions
 from django.db import models as django_models
 from rest_framework.authentication import SessionAuthentication
@@ -13,6 +17,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from django.db.models import Sum, Avg, Count
+from rest_framework.exceptions import ValidationError
 from .models import *
 from .serializers import *
 from .permissions import *
@@ -25,8 +31,6 @@ class GoogleLoginView(APIView):
 
     def post(self, request):
         token = request.data.get('token')
-        
-        # Accessing the ID from settings.py (which loads from .env)
         GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID 
 
         try:
@@ -221,35 +225,17 @@ class BatchListCreateView(generics.ListCreateAPIView):
     serializer_class = BatchSerializer
     permission_classes = [permissions.IsAuthenticated]
     
-
-def perform_create(self, serializer):
-    from .models import FarmHand, Farm
     def perform_create(self, serializer):
-        # 1. Get the FarmHand profile for the user trying to log the harvest
         try:
             farmhand_profile = FarmHand.objects.get(user=self.request.user)
         except FarmHand.DoesNotExist:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError({
-                "detail": "Your account is not linked to a FarmHand profile. Please contact an admin."
-            })
+            raise ValidationError({"detail": "No FarmHand profile found for this account."})
 
-        # 2. Get the Farm assigned to this FarmHand
-        # Logic: We look for a farm where this farmhand is the manager
         farm = Farm.objects.filter(farmhand=farmhand_profile).first()
-
         if not farm:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError({
-                "detail": "You are a registered FarmHand, but you haven't been assigned to a Farm yet."
-            })
+            raise ValidationError({"detail": "You haven't been assigned to a Farm yet."})
 
-        # 3. Save with the linked data (THIS IS THE CRITICAL STEP)
-        serializer.save(
-            farmhand=farmhand_profile, 
-            farm=farm
-        )
-    
+        serializer.save(farmhand=farmhand_profile, farm=farm)
    
 
 class AdminRegistrationView(APIView):
@@ -473,3 +459,62 @@ class UserProfileView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+  #pssword reset
+  # --- PART 1: INITIATE RESET ---
+class PasswordResetRequestView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        try:
+            user = User.objects.get(email=email)
+            
+            # Security token generation
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            # Link points back to the React frontend route
+            reset_url = f"http://localhost:5173/reset-password/{uid}/{token}/"
+            
+            send_mail(
+                subject="Reset Your HarvestHub Password",
+                message=f"Click the link below to reset your password: \n\n {reset_url}",
+                from_email="noreply@harvesthub.com",
+                recipient_list=[email],
+                fail_silently=False,
+            )
+            
+            return Response({"detail": "Reset link sent successfully."}, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            # Masking existence for security (Email Enumeration protection)
+            return Response({"detail": "If this email exists, a reset link has been sent."}, status=status.HTTP_200_OK)
+
+# --- PART 2: PROCESS NEW PASSWORD ---
+class PasswordResetConfirmView(APIView):
+    """
+    This view receives the UID and Token from the React frontend 
+    and updates the user's password if valid.
+    """
+    def post(self, request):
+        uidb64 = request.data.get('uid')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+
+        if not all([uidb64, token, new_password]):
+            return Response({"error": "Missing required fields."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Decode the UID back into the database ID
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+
+            # Validate the cryptographic token against the user
+            if default_token_generator.check_token(user, token):
+                user.set_password(new_password)
+                user.save()
+                return Response({"detail": "Password has been reset successfully."}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Token is invalid or has expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({"error": "Invalid user ID or malformed request."}, status=status.HTTP_400_BAD_REQUEST)

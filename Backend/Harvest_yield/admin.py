@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent
+from .models import User, FarmHand, Farm, Batch, TreatmentLog, FarmCorrespondent ,InstitutionNotification
 
 # SECTION 1: INLINES
 class FarmCorrespondentInline(admin.StackedInline):
@@ -105,6 +105,12 @@ class TreatmentLogAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('batch__farm')
 
+@admin.register(InstitutionNotification)
+class InstitutionNotificationAdmin(admin.ModelAdmin):
+    """NEW: Track the automated logs sent to the React Dashboard."""
+    list_display = ['institution', 'message', 'created_at']
+    list_filter = ['institution', 'created_at']
+    readonly_fields = ['created_at']
 # --- NEW: Standalone Registration for Profiles ---
 @admin.register(FarmHand)
 class FarmHandProfileAdmin(admin.ModelAdmin):

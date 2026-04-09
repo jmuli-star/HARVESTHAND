@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Sum
 from django.utils.timezone import now 
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.base_user import BaseUserManager
@@ -7,10 +8,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.exceptions import ValidationError
 
-# ==========================================
 # SECTION 1: USER & HIERARCHY LOGIC
-# ==========================================
-
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -133,6 +131,8 @@ class Farm(models.Model):
     def recent_activity(self):
         """Fetches the last 3 batches entered by FarmHands."""
         return self.farm_batches.select_related('farmhand__user').order_by('-created_at')[:3]
+    def __str__(self):
+        return self.name
 
 class Batch(models.Model):
     farm = models.ForeignKey(Farm, on_delete=models.CASCADE, related_name='farm_batches', null=True, blank=True)
@@ -151,6 +151,19 @@ class TreatmentLog(models.Model):
     action_type = models.CharField(max_length=50)
     notes = models.TextField(blank=True)
 
+
+#Notification model to power the "System Logs" in your React Dashboard
+class InstitutionNotification(models.Model):
+    institution = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name='notifications'
+    )
+    message = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.institution.email}: {self.message[:30]}"
 # SECTION 4: SIGNALS
 
 @receiver(post_save, sender=User)
