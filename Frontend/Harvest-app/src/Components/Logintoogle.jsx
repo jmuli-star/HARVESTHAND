@@ -21,20 +21,24 @@ function Logintoogle() {
   const navigate = useNavigate();
 
   // --- GOOGLE OAUTH HASH HANDLING ---
+  // This effect listens for the redirect from your social_token_exchange view
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('access=')) {
       const params = {};
+      // Parsing the #access=xyz&refresh=abc&role=admin fragment
       hash.substring(1).split('&').forEach(pair => {
         const [key, value] = pair.split('=');
         params[key] = value;
       });
 
       if (params.access) {
+        // Save tokens to localStorage so Service.js can find them
         localStorage.setItem('access_token', params.access);
         localStorage.setItem('refresh_token', params.refresh || '');
         localStorage.setItem('user_role', params.role || 'user');
 
+        // Clean up the URL fragment for a professional look
         window.history.replaceState(null, null, window.location.pathname);
 
         const roleRoutes = {
@@ -45,7 +49,10 @@ function Logintoogle() {
           user: '/dashboard/user'
         };
 
-        navigate(roleRoutes[params.role] || '/dashboard/user');
+        setMessage("Google login successful! Welcome to the field. 🌾");
+        setTimeout(() => {
+            navigate(roleRoutes[params.role] || '/dashboard/user');
+        }, 1000);
       }
     }
   }, [navigate]);
@@ -55,7 +62,10 @@ function Logintoogle() {
   };
 
   const handleGoogleAuth = () => {
-    window.location.href = `${API_BASE}/auth/google/`;
+    // This triggers the Django AllAuth flow. 
+    // Django will handle Google, then hit your social_token_exchange view, 
+    // which redirects back here with the #access= fragment.
+    window.location.href = `http://127.0.0.1:8000/accounts/google/login/`;
   };
 
   const redirectUser = (role) => {
@@ -79,6 +89,7 @@ function Logintoogle() {
         password: formData.password,
       });
       
+      // Match key names to your SimpleJWT response (usually 'access' and 'refresh')
       localStorage.setItem('access_token', res.data.access);
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
@@ -112,6 +123,7 @@ function Logintoogle() {
 
       setMessage("Account created successfully! 🎉");
       
+      // If your register view returns tokens immediately
       if (res.data.access) {
         localStorage.setItem('access_token', res.data.access);
         localStorage.setItem('user_role', res.data.user.role);
@@ -135,7 +147,7 @@ function Logintoogle() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full">
         
         {/* Brand Header */}
@@ -150,14 +162,12 @@ function Logintoogle() {
 
         <div className="bg-white rounded-[2.75rem] shadow-2xl border border-emerald-100 overflow-hidden">
           
-          {/* Login / Register Toggle */}
+          {/* Toggle Tab */}
           <div className="flex m-4 bg-emerald-50 rounded-[2rem] p-1">
             <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                isLogin 
-                  ? 'bg-white shadow-sm text-emerald-700' 
-                  : 'text-stone-500 hover:text-emerald-600'
+                isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
               }`}
             >
               <LogIn size={18} /> Login
@@ -165,9 +175,7 @@ function Logintoogle() {
             <button
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-4 rounded-[1.75rem] text-sm font-bold flex items-center justify-center gap-2 transition-all ${
-                !isLogin 
-                  ? 'bg-white shadow-sm text-emerald-700' 
-                  : 'text-stone-500 hover:text-emerald-600'
+                !isLogin ? 'bg-white shadow-sm text-emerald-700' : 'text-stone-500 hover:text-emerald-600'
               }`}
             >
               <UserPlus size={18} /> Register
@@ -179,7 +187,7 @@ function Logintoogle() {
               {isLogin ? 'Welcome back to the field' : 'Join the farm family'}
             </h2>
 
-            {/* Google Button */}
+            {/* Google Button - Hits the AllAuth endpoint */}
             <button
               type="button"
               onClick={handleGoogleAuth}
@@ -191,14 +199,15 @@ function Logintoogle() {
 
             <div className="relative text-center mb-8">
               <hr className="border-emerald-100" />
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 text-xs font-bold text-emerald-400 tracking-widest">
-                OR CONTINUE WITH EMAIL
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-6 text-xs font-bold text-emerald-400 tracking-widest uppercase">
+                Or continue with email
               </span>
             </div>
 
             <form onSubmit={isLogin ? handleLogin : handleRegister} className="space-y-6">
+              {/* Email Input */}
               <div>
-                <label className="block text-xs font-bold text-stone-500 mb-2">Email Address</label>
+                <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Email Address</label>
                 <input
                   name="email"
                   type="email"
@@ -210,8 +219,9 @@ function Logintoogle() {
                 />
               </div>
 
+              {/* Password Input */}
               <div>
-                <label className="block text-xs font-bold text-stone-500 mb-2">Password</label>
+                <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Password</label>
                 <input
                   name="password"
                   type="password"
@@ -223,10 +233,11 @@ function Logintoogle() {
                 />
               </div>
 
+              {/* Registration Specific Fields */}
               {!isLogin && (
-                <>
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-4">
                   <div>
-                    <label className="block text-xs font-bold text-stone-500 mb-2">Confirm Password</label>
+                    <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Confirm Password</label>
                     <input
                       name="password2"
                       type="password"
@@ -239,7 +250,7 @@ function Logintoogle() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-500 mb-2">Farm / Organization Name</label>
+                    <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Farm / Organization</label>
                     <input
                       name="institution_name"
                       type="text"
@@ -251,12 +262,12 @@ function Logintoogle() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-stone-500 mb-2">Your Role</label>
+                    <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Professional Role</label>
                     <select
                       name="role"
                       value={formData.role}
                       onChange={handleChange}
-                      className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
+                      className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700 appearance-none cursor-pointer"
                     >
                       <option value="user">Grower / Basic User</option>
                       <option value="farmhand">Farm Hand</option>
@@ -265,7 +276,7 @@ function Logintoogle() {
                       <option value="admin">Administrator</option>
                     </select>
                   </div>
-                </>
+                </div>
               )}
 
               <button
@@ -283,12 +294,12 @@ function Logintoogle() {
               </button>
             </form>
 
-            {/* Message */}
+            {/* Notification Message */}
             {message && (
-              <div className={`mt-8 p-4 rounded-3xl text-sm font-medium flex items-center gap-3 ${
-                message.includes('success') || message.includes('Welcome') || message.includes('created')
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                  : 'bg-rose-100 text-rose-700 border border-rose-200'
+              <div className={`mt-8 p-4 rounded-3xl text-sm font-medium flex items-center gap-3 border animate-bounce ${
+                message.toLowerCase().includes('success') || message.includes('Welcome') || message.includes('created')
+                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                  : 'bg-rose-100 text-rose-700 border-rose-200'
               }`}>
                 <ShieldCheck size={18} />
                 {message}
@@ -301,7 +312,7 @@ function Logintoogle() {
           onClick={handleDecline}
           className="mt-8 w-full text-stone-400 hover:text-rose-500 text-xs font-bold tracking-widest uppercase transition-colors"
         >
-          Clear Session &amp; Return Home
+          Clear Session & Return Home
         </button>
       </div>
     </div>
