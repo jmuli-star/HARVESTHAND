@@ -14,7 +14,8 @@ const BASE_URL = `${API_ROOT}/api/v1/services`;
 // --- SUB-COMPONENT: PRODUCT CARD ---
 const ProductItem = ({ item, onAddToCart }) => {
   const [qty, setQty] = useState(1);
-  const subtotal = qty * parseFloat(item.price || 0);
+  const price = parseFloat(item.price || 0);
+  const subtotal = qty * price;
 
   return (
     <div className="group bg-white rounded-[2.5rem] border border-emerald-100 shadow-sm hover:shadow-2xl transition-all overflow-hidden flex flex-col">
@@ -25,7 +26,7 @@ const ProductItem = ({ item, onAddToCart }) => {
           className="w-full h-full object-cover transition-transform group-hover:scale-105" 
         />
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-emerald-700 text-[10px] font-black px-4 py-1.5 rounded-full shadow uppercase tracking-widest">
-          {item.category?.name || 'General'}
+          {item.category_name || item.category?.name || 'General'}
         </div>
       </div>
       <div className="p-6 flex-1 flex flex-col">
@@ -41,7 +42,7 @@ const ProductItem = ({ item, onAddToCart }) => {
           <div className="flex justify-between items-end">
             <div>
               <span className="text-xs font-bold text-emerald-600">UNIT KES</span>
-              <p className="text-2xl font-black text-emerald-900 leading-none">{parseFloat(item.price || 0).toLocaleString()}</p>
+              <p className="text-2xl font-black text-emerald-900 leading-none">{price.toLocaleString()}</p>
             </div>
             <div className="text-right">
               <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Subtotal</span>
@@ -50,11 +51,11 @@ const ProductItem = ({ item, onAddToCart }) => {
           </div>
 
           <div className="flex items-center gap-2 bg-stone-50 p-1.5 rounded-2xl border border-stone-100">
-            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-all">
+            <button onClick={() => setQty(Math.max(1, qty - 1))} className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center hover:bg-rose-50 transition-all">
               <Minus size={16} />
             </button>
             <span className="flex-1 text-center font-bold text-emerald-900">{qty}</span>
-            <button onClick={() => { if(qty < item.stock_quantity) setQty(qty + 1) }} className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all">
+            <button onClick={() => { if(qty < item.stock_quantity) setQty(qty + 1) }} className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center hover:bg-emerald-50 transition-all">
               <Plus size={16} />
             </button>
           </div>
@@ -62,9 +63,9 @@ const ProductItem = ({ item, onAddToCart }) => {
           <button 
             disabled={item.stock_quantity === 0}
             onClick={() => onAddToCart(item, qty)} 
-            className="w-full py-4 border-2 border-emerald-700 text-emerald-700 font-bold rounded-3xl hover:bg-emerald-700 hover:text-white transition-all disabled:border-stone-200 disabled:text-stone-300 disabled:hover:bg-transparent"
+            className="w-full py-4 border-2 border-emerald-700 text-emerald-700 font-bold rounded-3xl hover:bg-emerald-700 hover:text-white transition-all disabled:border-stone-200 disabled:text-stone-300"
           >
-            {item.stock_quantity === 0 ? 'Unavailable' : `Add ${qty} to Cart`}
+            {item.stock_quantity === 0 ? 'Sold Out' : `Add ${qty} to Cart`}
           </button>
         </div>
       </div>
@@ -75,77 +76,72 @@ const ProductItem = ({ item, onAddToCart }) => {
 // --- MAIN COMPONENT ---
 const Service = () => {
   const navigate = useNavigate();
+  
+  // Data States
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [phone, setPhone] = useState('');
+  
+  // UI/Form States
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isPaying, setIsPaying] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState(null);
   const [showCart, setShowCart] = useState(false);
-  const [showCheckoutStep, setShowCheckoutStep] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postForm, setPostForm] = useState({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
+  const [phone, setPhone] = useState('');
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
-    return { 
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      } 
-    };
+    return { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
   }, []);
 
   const fetchCart = useCallback(async () => {
     try {
       const res = await axios.get(`${BASE_URL}/cart/`, getAuthHeaders());
-      setCart(Array.isArray(res.data.items) ? res.data.items : []);
-    } catch (err) { console.error("Cart fetch failed", err); }
+      // Handle cases where response might be { items: [...] } or just [...]
+      const cartData = res.data.items || (Array.isArray(res.data) ? res.data : []);
+      setCart(cartData);
+    } catch (err) { console.error("Cart fetch error", err); }
   }, [getAuthHeaders]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
+
+      // Using separate calls to debug exactly which one fails if needed
+      const catResponse = await axios.get(`${BASE_URL}/categories/`, headers);
+      const itemResponse = await axios.get(`${BASE_URL}/items/`, headers);
+
+      // Defensive check for Django Pagination (results key) or direct arrays
+      const finalCats = catResponse.data.results || catResponse.data || [];
+      const finalItems = itemResponse.data.results || itemResponse.data || [];
+
+      setCategories(Array.isArray(finalCats) ? finalCats : []);
+      setItems(Array.isArray(finalItems) ? finalItems : []);
       
-      const [catRes, itemRes] = await Promise.allSettled([
-        axios.get(`${BASE_URL}/categories/`, headers),
-        axios.get(`${BASE_URL}/items/`, headers)
-      ]);
-
-      if (catRes.status === 'fulfilled') {
-        setCategories(catRes.value.data || []);
-      } else {
-        console.error("Categories fetch failed:", catRes.reason);
-      }
-
-      if (itemRes.status === 'fulfilled') {
-        setItems(itemRes.value.data || []);
-      } else {
-        console.error("Items fetch failed:", itemRes.reason);
-      }
-
       await fetchCart();
-    } catch (err) { 
-      console.error("Critical Data fetch failure", err); 
-    } finally { 
-      setLoading(false); 
+    } catch (err) {
+      console.error("Marketplace fetch error:", err.response?.data || err.message);
+    } finally {
+      setLoading(false);
     }
   }, [getAuthHeaders, fetchCart]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Actions
   const addToCart = async (item, requestedQty) => {
     try {
       await axios.post(`${BASE_URL}/cart/`, { item_id: item.id, quantity: requestedQty }, getAuthHeaders());
       fetchCart();
       setShowCart(true); 
     } catch (err) { 
-      alert(err.response?.data?.error || "Unable to add to cart. Check stock."); 
+      alert(err.response?.data?.error || "Unable to add to cart."); 
     }
   };
 
@@ -153,35 +149,48 @@ const Service = () => {
     try {
       await axios.delete(`${BASE_URL}/cart/${cartItemId}/`, getAuthHeaders());
       fetchCart();
-    } catch (err) { 
-      console.error("Remove failed", err);
-    }
+    } catch (err) { console.error("Remove error", err); }
   };
 
-  const handleCheckout = async () => {
-    if (!phone || phone.length < 10) return alert("Enter valid M-Pesa Number");
-    setIsPaying(true);
-    setPaymentStatus('processing');
+  const handlePostSubmit = async (e) => {
+    e.preventDefault();
+    if (!postForm.category_id) return alert("Please select a category");
+    
+    setIsSubmitting(true);
     try {
-      const res = await axios.post(`${BASE_URL}/pay/initiate/`, { phone }, getAuthHeaders());
-      if (res.status === 200 || res.status === 201) {
-        setPaymentStatus('success');
-        setCart([]);
-        setTimeout(() => { 
-          setPaymentStatus(null); 
-          setShowCart(false); 
-          setShowCheckoutStep(false); 
-          fetchCart();
-        }, 5000);
-      }
-    } catch (err) { 
-      setPaymentStatus('error'); 
-      alert("Payment initiation failed. Try again.");
-    } finally { 
-      setIsPaying(false); 
+      const payload = {
+        ...postForm,
+        price: parseFloat(postForm.price),
+        stock_quantity: parseInt(postForm.stock_quantity),
+        category: parseInt(postForm.category_id) // Backend might expect 'category' not 'category_id'
+      };
+      await axios.post(`${BASE_URL}/items/`, payload, getAuthHeaders());
+      setShowPostModal(false);
+      setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
+      fetchData();
+      alert("Item listed successfully! 🚀");
+    } catch (err) {
+      alert("Publish failed. Check that all fields are correct.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  // M-Pesa Logic
+  const handleCheckout = async () => {
+    if (!phone) return alert("Enter M-Pesa Number");
+    setIsPaying(true);
+    try {
+      await axios.post(`${BASE_URL}/pay/initiate/`, { phone }, getAuthHeaders());
+      setPaymentStatus('success');
+      setCart([]);
+      setTimeout(() => { setShowCart(false); setPaymentStatus(null); }, 3000);
+    } catch (err) {
+      setPaymentStatus('error');
+    } finally { setIsPaying(false); }
+  };
+
+  // Calculations
   const cartTotal = useMemo(() => {
     return cart.reduce((acc, curr) => acc + (parseFloat(curr.item_price || 0) * curr.quantity), 0);
   }, [cart]);
@@ -190,34 +199,11 @@ const Service = () => {
     return items.filter(item => {
       const name = (item.name || "").toLowerCase();
       const matchesSearch = name.includes(searchQuery.toLowerCase());
-      const catName = item.category?.name || "General";
-      return (selectedCategory === 'All' || catName === selectedCategory) && matchesSearch;
+      const catName = item.category?.name || item.category_name || "General";
+      const matchesCat = selectedCategory === 'All' || catName === selectedCategory;
+      return matchesSearch && matchesCat;
     });
   }, [items, searchQuery, selectedCategory]);
-
-  const handlePostSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    try {
-      // Ensure numeric values are sent as numbers, not strings
-      const payload = {
-        ...postForm,
-        price: parseFloat(postForm.price),
-        stock_quantity: parseInt(postForm.stock_quantity),
-        category_id: parseInt(postForm.category_id)
-      };
-      
-      await axios.post(`${BASE_URL}/items/`, payload, getAuthHeaders());
-      setShowPostModal(false);
-      setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
-      fetchData(); // Refresh Marketplace
-      alert("Product Published Successfully!");
-    } catch (err) { 
-      alert(err.response?.data?.detail || "Error posting product. Verify all fields."); 
-    } finally { 
-      setIsSubmitting(false); 
-    }
-  };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-emerald-50">
@@ -226,61 +212,59 @@ const Service = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 text-stone-900 font-sans pb-20">
+    <div className="min-h-screen bg-[#F9FBFA] text-stone-900 font-sans pb-20">
       <div className="max-w-7xl mx-auto px-6 py-10">
         
-        {/* HEADER */}
+        {/* TOP NAVIGATION */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
           <div>
-            <button onClick={() => navigate('/dashboard/user')} className="flex items-center gap-2 text-emerald-700 hover:text-emerald-900 font-semibold mb-4 transition-colors">
-              <ArrowLeft size={18} /> Back to Hub
+            <button onClick={() => navigate('/dashboard/user')} className="flex items-center gap-2 text-emerald-700 hover:underline font-bold mb-4">
+              <ArrowLeft size={18} /> Exit Market
             </button>
-            <h1 className="text-5xl font-bold tracking-tight text-emerald-900">
-              Harvest<span className="text-amber-600">Market</span>
-            </h1>
+            <h1 className="text-5xl font-black tracking-tighter text-emerald-900">Marketplace.</h1>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3">
             <button 
-              onClick={() => { setShowCart(true); setShowCheckoutStep(false); }}
-              className="relative bg-white border border-emerald-200 text-emerald-900 px-6 py-5 rounded-3xl font-bold flex items-center gap-3 shadow-sm hover:shadow-lg transition-all active:scale-95"
+              onClick={() => setShowCart(true)}
+              className="relative bg-white border-2 border-emerald-100 text-emerald-900 px-6 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl hover:bg-emerald-50 transition-all"
             >
               <ShoppingCart size={22} className="text-emerald-600" />
-              <span>Cart (KES {cartTotal.toLocaleString()})</span>
+              <span>KES {cartTotal.toLocaleString()}</span>
               {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] w-6 h-6 rounded-full flex items-center justify-center border-2 border-white font-black">
+                <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] w-6 h-6 rounded-full flex items-center justify-center font-bold">
                   {cart.length}
                 </span>
               )}
             </button>
 
-            <button onClick={() => setShowPostModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-5 rounded-3xl font-bold flex items-center gap-3 shadow-xl transition-all active:scale-95">
+            <button onClick={() => setShowPostModal(true)} className="bg-stone-900 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl hover:scale-105 transition-all">
               <Plus size={22} /> Sell Item
             </button>
           </div>
         </div>
 
-        {/* SEARCH & FILTERS */}
+        {/* SEARCH & CATEGORY BAR */}
         <div className="flex flex-col lg:flex-row gap-6 mb-12">
           <div className="relative flex-1">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-400" size={22} />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
             <input 
               type="text" 
-              placeholder="Search seeds, tools, fertilizers..." 
+              placeholder="Search farm inputs, seeds, tools..." 
               value={searchQuery} 
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-14 pr-6 py-5 bg-white border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none shadow-sm transition-all"
+              className="w-full pl-14 pr-6 py-5 bg-white border-2 border-stone-100 rounded-[2rem] focus:border-emerald-500 outline-none shadow-sm transition-all font-medium"
             />
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-            <button onClick={() => setSelectedCategory('All')} className={`px-8 py-4 rounded-3xl font-semibold text-sm transition-all whitespace-nowrap ${selectedCategory === 'All' ? 'bg-emerald-700 text-white shadow-md' : 'bg-white text-stone-600 border border-emerald-100'}`}>All</button>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+            <button onClick={() => setSelectedCategory('All')} className={`px-8 py-4 rounded-2xl font-bold text-sm transition-all ${selectedCategory === 'All' ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-stone-100 text-stone-500'}`}>All</button>
             {categories.map((cat) => (
-              <button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-8 py-4 rounded-3xl font-semibold text-sm transition-all whitespace-nowrap ${selectedCategory === cat.name ? 'bg-emerald-700 text-white shadow-md' : 'bg-white text-stone-600 border border-emerald-100'}`}>{cat.name}</button>
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-8 py-4 rounded-2xl font-bold text-sm transition-all whitespace-nowrap ${selectedCategory === cat.name ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-stone-100 text-stone-500'}`}>{cat.name}</button>
             ))}
           </div>
         </div>
 
-        {/* PRODUCTS GRID */}
+        {/* THE GRID */}
         {filteredItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {filteredItems.map((item) => (
@@ -288,45 +272,83 @@ const Service = () => {
             ))}
           </div>
         ) : (
-          <div className="text-center py-20 bg-white/50 rounded-[3rem] border-2 border-dashed border-emerald-100">
-            <Package size={48} className="mx-auto text-emerald-200 mb-4" />
-            <p className="text-stone-500 font-bold">No products found in this category.</p>
+          <div className="text-center py-32">
+            <Package size={64} className="mx-auto text-stone-200 mb-4" />
+            <h3 className="text-xl font-bold text-stone-400 tracking-tight italic">Nothing found in this section.</h3>
           </div>
         )}
       </div>
 
-      {/* SIDE CART DRAWER */}
+      {/* MODAL: POST ITEM */}
+      {showPostModal && (
+        <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[250] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95">
+              <div className="px-10 py-8 bg-emerald-50 border-b flex justify-between items-center text-emerald-900">
+                <h2 className="text-3xl font-black tracking-tighter">List Product</h2>
+                <button onClick={() => setShowPostModal(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
+              </div>
+              <form onSubmit={handlePostSubmit} className="p-10 space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Item Name</label>
+                    <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" placeholder="e.g. DAP Fertilizer" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Category</label>
+                    <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold appearance-none">
+                      <option value="">Select Category</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Price (KES)</label>
+                    <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Stock</label>
+                    <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Description</label>
+                  <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold resize-none" />
+                </div>
+                <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-black text-xl rounded-2xl hover:bg-emerald-700 shadow-xl disabled:bg-stone-200 transition-all active:scale-95">
+                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "PUBLISH TO MARKET"}
+                </button>
+              </form>
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER: CART */}
       {showCart && (
-        <div className="fixed inset-0 z-[150] flex justify-end">
+        <div className="fixed inset-0 z-[300] flex justify-end">
           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
           <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className="p-8 border-b bg-emerald-50 flex justify-between items-center">
-              <div>
-                <h2 className="text-2xl font-bold text-emerald-900 italic tracking-tighter">Market Cart.</h2>
-                <p className="text-stone-500 text-[10px] font-black uppercase tracking-widest mt-1">{cart.length} items collected</p>
-              </div>
-              <button onClick={() => setShowCart(false)} className="p-2 hover:bg-emerald-100 rounded-full transition-colors"><X size={24} /></button>
+              <h2 className="text-2xl font-black italic tracking-tighter">Your Basket.</h2>
+              <button onClick={() => setShowCart(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {cart.length === 0 ? (
-                <div className="text-center py-20 flex flex-col items-center">
-                  <ShoppingBag size={48} className="text-stone-100 mb-4" />
-                  <p className="text-stone-300 font-black uppercase tracking-widest text-xs">Your basket is empty</p>
-                </div>
+                <div className="text-center py-20 text-stone-300 font-black uppercase tracking-widest text-xs">Empty Cart</div>
               ) : (
                 cart.map((c) => (
-                  <div key={c.id} className="flex gap-4 items-center p-4 rounded-[2rem] bg-stone-50 border border-stone-100 transition-all hover:bg-emerald-50">
-                    <div className="w-16 h-16 bg-white rounded-2xl overflow-hidden border flex-shrink-0">
-                      <img src={c.item_image || `https://picsum.photos/id/20/200/200`} className="object-cover w-full h-full" alt="" />
+                  <div key={c.id} className="flex gap-4 items-center p-4 rounded-2xl border-2 border-stone-50 hover:border-emerald-100 transition-all">
+                    <div className="w-16 h-16 bg-stone-100 rounded-xl overflow-hidden flex-shrink-0">
+                      <img src={c.item_image} className="object-cover w-full h-full" alt="" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-emerald-900 truncate">{c.item_name}</p>
-                      <p className="text-[10px] text-stone-400 font-black uppercase tracking-widest mt-1">Qty: {c.quantity} × KES {parseFloat(c.item_price).toLocaleString()}</p>
+                    <div className="flex-1">
+                      <p className="font-bold text-sm text-emerald-900 leading-tight">{c.item_name}</p>
+                      <p className="text-[10px] font-black text-stone-400 mt-1">QTY: {c.quantity}</p>
                     </div>
-                    <div className="text-right flex flex-col items-end gap-2">
-                      <p className="font-black text-emerald-900 text-sm">KES {(parseFloat(c.item_price || 0) * c.quantity).toLocaleString()}</p>
-                      <button onClick={() => removeFromCart(c.id)} className="p-2 text-stone-300 hover:text-rose-500 rounded-full transition-all"><Trash2 size={16} /></button>
+                    <div className="text-right">
+                      <p className="font-black text-sm">KES {(parseFloat(c.item_price || 0) * c.quantity).toLocaleString()}</p>
+                      <button onClick={() => removeFromCart(c.id)} className="text-rose-400 mt-1"><Trash2 size={14} /></button>
                     </div>
                   </div>
                 ))
@@ -335,86 +357,21 @@ const Service = () => {
 
             <div className="p-8 bg-emerald-50 border-t space-y-6">
               <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Grand Total</span>
-                <span className="text-4xl font-bold text-emerald-900 tracking-tighter">KES {cartTotal.toLocaleString()}</span>
+                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Total</span>
+                <span className="text-4xl font-black text-emerald-900">KES {cartTotal.toLocaleString()}</span>
               </div>
 
-              {showCheckoutStep && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <label className="block text-[10px] font-black text-emerald-700 uppercase tracking-widest ml-1">M-Pesa Checkout Number</label>
-                  <div className="flex items-center gap-3 bg-white px-5 py-4 rounded-2xl border-2 border-emerald-400 shadow-inner">
-                    <Smartphone size={18} className="text-emerald-500" />
-                    <input type="tel" placeholder="0712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} className="bg-transparent outline-none font-bold text-stone-700 w-full text-lg" />
-                  </div>
-                </div>
-              )}
-
-              {paymentStatus === 'success' && (
-                <div className="bg-emerald-100 text-emerald-700 p-4 rounded-2xl flex items-center gap-3 font-bold animate-pulse">
-                  <CheckCircle2 size={20} /> STK Push Sent! Check phone.
-                </div>
-              )}
-
-              {!showCheckoutStep ? (
-                <button onClick={() => setShowCheckoutStep(true)} disabled={cart.length === 0} className="w-full py-6 bg-emerald-700 text-white font-black text-lg rounded-[2rem] shadow-xl hover:bg-stone-900 transition-all disabled:bg-stone-200">
-                  Proceed to Checkout
-                </button>
+              {paymentStatus === 'success' ? (
+                <div className="bg-emerald-100 text-emerald-700 p-4 rounded-xl text-center font-bold">Request Sent! Check your phone.</div>
               ) : (
-                <div className="flex gap-2">
-                  <button onClick={() => setShowCheckoutStep(false)} className="p-6 bg-white border border-emerald-200 text-emerald-700 rounded-[2rem] hover:bg-stone-100 transition-colors"><ArrowLeft size={20} /></button>
-                  <button onClick={handleCheckout} disabled={isPaying || !phone} className="flex-1 py-6 bg-emerald-900 text-white font-black text-lg rounded-[2rem] shadow-xl hover:bg-black transition-all disabled:opacity-50">
-                    {isPaying ? <Loader2 className="animate-spin mx-auto" size={24} /> : "Pay via M-Pesa"}
+                <div className="space-y-4">
+                  <input type="tel" placeholder="M-Pesa Number (07...)" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-6 py-4 rounded-xl border-2 border-emerald-200 outline-none font-bold" />
+                  <button onClick={handleCheckout} disabled={isPaying || cart.length === 0} className="w-full py-5 bg-emerald-900 text-white font-black rounded-xl shadow-xl flex items-center justify-center">
+                    {isPaying ? <Loader2 className="animate-spin" /> : "PAY VIA M-PESA"}
                   </button>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* POST MODAL: SELL ITEM */}
-      {showPostModal && (
-        <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-[250] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-              <div className="px-8 py-6 bg-emerald-50 border-b flex justify-between items-center text-emerald-900">
-                <div>
-                  <h2 className="text-2xl font-bold italic">Sell Product</h2>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Marketplace Listing</p>
-                </div>
-                <button onClick={() => setShowPostModal(false)} className="p-2 hover:bg-emerald-100 rounded-full transition-colors"><X size={24} /></button>
-              </div>
-              <form onSubmit={handlePostSubmit} className="p-8 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-stone-400 ml-4">Product Name</label>
-                    <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="e.g. Hybrid Maize Seeds" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-stone-400 ml-4">Listing Category</label>
-                    <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 outline-none focus:ring-2 focus:ring-emerald-500 transition-all appearance-none">
-                      <option value="">Select Category</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-stone-400 ml-4">Price (KES)</label>
-                    <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="0.00" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black uppercase text-stone-400 ml-4">Initial Stock</label>
-                    <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Qty" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black uppercase text-stone-400 ml-4">Description</label>
-                  <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 resize-none outline-none focus:ring-2 focus:ring-emerald-500 transition-all" placeholder="Tell buyers about your product..." />
-                </div>
-                <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-black text-xl rounded-[2rem] hover:bg-emerald-700 shadow-xl transition-all active:scale-95 disabled:bg-stone-300">
-                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "PUBLISH TO MARKET"}
-                </button>
-              </form>
           </div>
         </div>
       )}
