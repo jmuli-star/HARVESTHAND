@@ -2,9 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ShoppingBag, Search, Smartphone, CheckCircle2, Loader2, 
-  ArrowLeft, Package, AlertCircle, CreditCard, Plus, X, 
-  ShoppingCart, Trash2, ChevronRight, Minus
+  Search, Loader2, ArrowLeft, Package, AlertCircle, Plus, X, 
+  ShoppingCart, Trash2, Minus, Edit3
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -12,7 +11,7 @@ const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').repla
 const BASE_URL = `${API_ROOT}/api/v1/services`;
 
 // --- SUB-COMPONENT: PRODUCT CARD ---
-const ProductItem = ({ item, onAddToCart }) => {
+const ProductItem = ({ item, onAddToCart, onEdit, onDelete }) => {
   const [qty, setQty] = useState(1);
   const price = parseFloat(item.price || 0);
   const subtotal = qty * price;
@@ -25,6 +24,15 @@ const ProductItem = ({ item, onAddToCart }) => {
           alt={item.name} 
           className="w-full h-full object-cover transition-transform group-hover:scale-105" 
         />
+        {/* Action Buttons for Owners (Edit/Delete) */}
+        <div className="absolute top-4 left-4 flex gap-2">
+          <button onClick={() => onEdit(item)} className="p-2 bg-white/90 backdrop-blur-sm rounded-full text-emerald-600 shadow-sm hover:bg-emerald-600 hover:text-white transition-colors">
+            <Edit3 size={16} />
+          </button>
+          <button onClick={() => onDelete(item.id)} className="p-2 bg-white/90 backdrop-blur-sm rounded-full text-rose-600 shadow-sm hover:bg-rose-600 hover:text-white transition-colors">
+            <Trash2 size={16} />
+          </button>
+        </div>
         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-emerald-700 text-[10px] font-black px-4 py-1.5 rounded-full shadow uppercase tracking-widest">
           {item.category_name || item.category?.name || 'General'}
         </div>
@@ -41,8 +49,8 @@ const ProductItem = ({ item, onAddToCart }) => {
         <div className="mt-auto pt-6 space-y-4">
           <div className="flex justify-between items-end">
             <div>
-              <span className="text-xs font-bold text-emerald-600">UNIT KES</span>
-              <p className="text-2xl font-black text-emerald-900 leading-none">{price.toLocaleString()}</p>
+              <span className="text-xs font-bold text-emerald-600 uppercase">Unit Price</span>
+              <p className="text-2xl font-black text-emerald-900 leading-none">KES {price.toLocaleString()}</p>
             </div>
             <div className="text-right">
               <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Subtotal</span>
@@ -83,11 +91,14 @@ const Service = () => {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // UI/Form States
+  // UI States
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCart, setShowCart] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [editingItem, setEditingItem] = useState(null); // Tracks if we are in Edit mode
+  
+  // Form States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [postForm, setPostForm] = useState({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
   const [phone, setPhone] = useState('');
@@ -99,84 +110,87 @@ const Service = () => {
     return { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } };
   }, []);
 
-  const fetchCart = useCallback(async () => {
-    try {
-      const res = await axios.get(`${BASE_URL}/cart/`, getAuthHeaders());
-      // Handle cases where response might be { items: [...] } or just [...]
-      const cartData = res.data.items || (Array.isArray(res.data) ? res.data : []);
-      setCart(cartData);
-    } catch (err) { console.error("Cart fetch error", err); }
-  }, [getAuthHeaders]);
-
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const headers = getAuthHeaders();
+      // Added trailing slashes for Django compatibility
+      const [catRes, itemRes, cartRes] = await Promise.all([
+        axios.get(`${BASE_URL}/categories/`, headers),
+        axios.get(`${BASE_URL}/items/`, headers),
+        axios.get(`${BASE_URL}/cart/`, headers).catch(() => ({ data: [] }))
+      ]);
 
-      // Using separate calls to debug exactly which one fails if needed
-      const catResponse = await axios.get(`${BASE_URL}/categories/`, headers);
-      const itemResponse = await axios.get(`${BASE_URL}/items/`, headers);
-
-      // Defensive check for Django Pagination (results key) or direct arrays
-      const finalCats = catResponse.data.results || catResponse.data || [];
-      const finalItems = itemResponse.data.results || itemResponse.data || [];
-
-      setCategories(Array.isArray(finalCats) ? finalCats : []);
-      setItems(Array.isArray(finalItems) ? finalItems : []);
-      
-      await fetchCart();
+      setCategories(catRes.data.results || catRes.data || []);
+      setItems(itemRes.data.results || itemRes.data || []);
+      setCart(cartRes.data.items || (Array.isArray(cartRes.data) ? cartRes.data : []));
     } catch (err) {
-      console.error("Marketplace fetch error:", err.response?.data || err.message);
+      console.error("Fetch Error:", err);
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders, fetchCart]);
+  }, [getAuthHeaders]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Actions
+  // CREATE / UPDATE ACTION
+  const handlePostSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const headers = getAuthHeaders();
+    const payload = {
+      ...postForm,
+      price: parseFloat(postForm.price),
+      stock_quantity: parseInt(postForm.stock_quantity),
+      category: parseInt(postForm.category_id)
+    };
+
+    try {
+      if (editingItem) {
+        await axios.patch(`${BASE_URL}/items/${editingItem.id}/`, payload, headers);
+      } else {
+        await axios.post(`${BASE_URL}/items/`, payload, headers);
+      }
+      setShowPostModal(false);
+      setEditingItem(null);
+      setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
+      fetchData();
+    } catch (err) {
+      alert("Action failed. Ensure all fields are valid.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // DELETE ACTION
+  const handleDeleteItem = async (id) => {
+    if (!window.confirm("Delete this listing?")) return;
+    try {
+      await axios.delete(`${BASE_URL}/items/${id}/`, getAuthHeaders());
+      fetchData();
+    } catch (err) {
+      alert("Delete failed.");
+    }
+  };
+
+  // CART ACTIONS
   const addToCart = async (item, requestedQty) => {
     try {
       await axios.post(`${BASE_URL}/cart/`, { item_id: item.id, quantity: requestedQty }, getAuthHeaders());
-      fetchCart();
+      fetchData(); // Refresh cart data
       setShowCart(true); 
     } catch (err) { 
-      alert(err.response?.data?.error || "Unable to add to cart."); 
+      alert(err.response?.data?.error || "Stock limit reached."); 
     }
   };
 
   const removeFromCart = async (cartItemId) => {
     try {
       await axios.delete(`${BASE_URL}/cart/${cartItemId}/`, getAuthHeaders());
-      fetchCart();
-    } catch (err) { console.error("Remove error", err); }
-  };
-
-  const handlePostSubmit = async (e) => {
-    e.preventDefault();
-    if (!postForm.category_id) return alert("Please select a category");
-    
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        ...postForm,
-        price: parseFloat(postForm.price),
-        stock_quantity: parseInt(postForm.stock_quantity),
-        category: parseInt(postForm.category_id) // Backend might expect 'category' not 'category_id'
-      };
-      await axios.post(`${BASE_URL}/items/`, payload, getAuthHeaders());
-      setShowPostModal(false);
-      setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
       fetchData();
-      alert("Item listed successfully! 🚀");
-    } catch (err) {
-      alert("Publish failed. Check that all fields are correct.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  // M-Pesa Logic
   const handleCheckout = async () => {
     if (!phone) return alert("Enter M-Pesa Number");
     setIsPaying(true);
@@ -190,15 +204,14 @@ const Service = () => {
     } finally { setIsPaying(false); }
   };
 
-  // Calculations
+  // CALCULATIONS
   const cartTotal = useMemo(() => {
     return cart.reduce((acc, curr) => acc + (parseFloat(curr.item_price || 0) * curr.quantity), 0);
   }, [cart]);
 
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      const name = (item.name || "").toLowerCase();
-      const matchesSearch = name.includes(searchQuery.toLowerCase());
+      const matchesSearch = item.name?.toLowerCase().includes(searchQuery.toLowerCase());
       const catName = item.category?.name || item.category_name || "General";
       const matchesCat = selectedCategory === 'All' || catName === selectedCategory;
       return matchesSearch && matchesCat;
@@ -215,51 +228,39 @@ const Service = () => {
     <div className="min-h-screen bg-[#F9FBFA] text-stone-900 font-sans pb-20">
       <div className="max-w-7xl mx-auto px-6 py-10">
         
-        {/* TOP NAVIGATION */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
           <div>
             <button onClick={() => navigate('/dashboard/user')} className="flex items-center gap-2 text-emerald-700 hover:underline font-bold mb-4">
-              <ArrowLeft size={18} /> Exit Market
+              <ArrowLeft size={18} /> Exit
             </button>
-            <h1 className="text-5xl font-black tracking-tighter text-emerald-900">Marketplace.</h1>
+            <h1 className="text-5xl font-black tracking-tighter text-emerald-900">Market.</h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setShowCart(true)}
-              className="relative bg-white border-2 border-emerald-100 text-emerald-900 px-6 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl hover:bg-emerald-50 transition-all"
-            >
+            <button onClick={() => setShowCart(true)} className="relative bg-white border-2 border-emerald-100 px-6 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl">
               <ShoppingCart size={22} className="text-emerald-600" />
               <span>KES {cartTotal.toLocaleString()}</span>
-              {cart.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-emerald-600 text-white text-[10px] w-6 h-6 rounded-full flex items-center justify-center font-bold">
-                  {cart.length}
-                </span>
-              )}
             </button>
-
-            <button onClick={() => setShowPostModal(true)} className="bg-stone-900 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl hover:scale-105 transition-all">
-              <Plus size={22} /> Sell Item
+            <button onClick={() => { setEditingItem(null); setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' }); setShowPostModal(true); }} className="bg-stone-900 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl">
+              <Plus size={22} /> Sell
             </button>
           </div>
         </div>
 
-        {/* SEARCH & CATEGORY BAR */}
+        {/* SEARCH & FILTERS */}
         <div className="flex flex-col lg:flex-row gap-6 mb-12">
           <div className="relative flex-1">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
             <input 
-              type="text" 
-              placeholder="Search farm inputs, seeds, tools..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-14 pr-6 py-5 bg-white border-2 border-stone-100 rounded-[2rem] focus:border-emerald-500 outline-none shadow-sm transition-all font-medium"
+              type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-14 pr-6 py-5 bg-white border-2 border-stone-100 rounded-[2rem] outline-none font-medium"
             />
           </div>
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-            <button onClick={() => setSelectedCategory('All')} className={`px-8 py-4 rounded-2xl font-bold text-sm transition-all ${selectedCategory === 'All' ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-stone-100 text-stone-500'}`}>All</button>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <button onClick={() => setSelectedCategory('All')} className={`px-8 py-4 rounded-2xl font-bold text-sm ${selectedCategory === 'All' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-500 border-2'}`}>All</button>
             {categories.map((cat) => (
-              <button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-8 py-4 rounded-2xl font-bold text-sm transition-all whitespace-nowrap ${selectedCategory === cat.name ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-stone-100 text-stone-500'}`}>{cat.name}</button>
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.name)} className={`px-8 py-4 rounded-2xl font-bold text-sm whitespace-nowrap ${selectedCategory === cat.name ? 'bg-emerald-600 text-white' : 'bg-white text-stone-500 border-2'}`}>{cat.name}</button>
             ))}
           </div>
         </div>
@@ -268,55 +269,47 @@ const Service = () => {
         {filteredItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {filteredItems.map((item) => (
-              <ProductItem key={item.id} item={item} onAddToCart={addToCart} />
+              <ProductItem 
+                key={item.id} 
+                item={item} 
+                onAddToCart={addToCart} 
+                onDelete={handleDeleteItem}
+                onEdit={(itm) => {
+                  setEditingItem(itm);
+                  setPostForm({ name: itm.name, description: itm.description, price: itm.price, stock_quantity: itm.stock_quantity, category_id: itm.category?.id || itm.category });
+                  setShowPostModal(true);
+                }}
+              />
             ))}
           </div>
         ) : (
-          <div className="text-center py-32">
-            <Package size={64} className="mx-auto text-stone-200 mb-4" />
-            <h3 className="text-xl font-bold text-stone-400 tracking-tight italic">Nothing found in this section.</h3>
-          </div>
+          <div className="text-center py-32"><Package size={64} className="mx-auto text-stone-200 mb-4" /><h3 className="text-xl font-bold text-stone-400">No items found.</h3></div>
         )}
       </div>
 
-      {/* MODAL: POST ITEM */}
+      {/* MODAL: CREATE/EDIT ITEM */}
       {showPostModal && (
         <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[250] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden">
               <div className="px-10 py-8 bg-emerald-50 border-b flex justify-between items-center text-emerald-900">
-                <h2 className="text-3xl font-black tracking-tighter">List Product</h2>
-                <button onClick={() => setShowPostModal(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
+                <h2 className="text-3xl font-black tracking-tighter">{editingItem ? 'Edit Listing' : 'List Product'}</h2>
+                <button onClick={() => setShowPostModal(false)}><X size={24} /></button>
               </div>
               <form onSubmit={handlePostSubmit} className="p-10 space-y-6">
                 <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Item Name</label>
-                    <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" placeholder="e.g. DAP Fertilizer" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Category</label>
-                    <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold appearance-none">
-                      <option value="">Select Category</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
+                  <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border-2 rounded-2xl bg-stone-50 font-bold" placeholder="Item Name" />
+                  <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border-2 rounded-2xl bg-stone-50 font-bold">
+                    <option value="">Category</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Price (KES)</label>
-                    <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Stock</label>
-                    <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold" />
-                  </div>
+                  <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border-2 rounded-2xl bg-stone-50 font-bold" placeholder="Price" />
+                  <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border-2 rounded-2xl bg-stone-50 font-bold" placeholder="Stock" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-stone-400 ml-4">Description</label>
-                  <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border-2 border-stone-50 rounded-2xl bg-stone-50 focus:bg-white focus:border-emerald-500 outline-none transition-all font-bold resize-none" />
-                </div>
-                <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-black text-xl rounded-2xl hover:bg-emerald-700 shadow-xl disabled:bg-stone-200 transition-all active:scale-95">
-                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "PUBLISH TO MARKET"}
+                <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border-2 rounded-2xl bg-stone-50 font-bold resize-none" placeholder="Description" />
+                <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-black text-xl rounded-2xl shadow-xl disabled:bg-stone-200">
+                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : editingItem ? "UPDATE LISTING" : "PUBLISH TO MARKET"}
                 </button>
               </form>
           </div>
@@ -327,24 +320,19 @@ const Service = () => {
       {showCart && (
         <div className="fixed inset-0 z-[300] flex justify-end">
           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
-          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-8 border-b bg-emerald-50 flex justify-between items-center">
-              <h2 className="text-2xl font-black italic tracking-tighter">Your Basket.</h2>
-              <button onClick={() => setShowCart(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
+          <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col">
+            <div className="p-8 border-b bg-emerald-50 flex justify-between items-center font-black">
+              <h2 className="text-2xl italic tracking-tighter">Your Basket.</h2>
+              <button onClick={() => setShowCart(false)}><X size={24} /></button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {cart.length === 0 ? (
-                <div className="text-center py-20 text-stone-300 font-black uppercase tracking-widest text-xs">Empty Cart</div>
-              ) : (
+              {cart.length === 0 ? (<div className="text-center py-20 text-stone-300 font-black text-xs">EMPTY CART</div>) : (
                 cart.map((c) => (
-                  <div key={c.id} className="flex gap-4 items-center p-4 rounded-2xl border-2 border-stone-50 hover:border-emerald-100 transition-all">
-                    <div className="w-16 h-16 bg-stone-100 rounded-xl overflow-hidden flex-shrink-0">
-                      <img src={c.item_image} className="object-cover w-full h-full" alt="" />
-                    </div>
+                  <div key={c.id} className="flex gap-4 items-center p-4 rounded-2xl border-2 border-stone-50">
                     <div className="flex-1">
-                      <p className="font-bold text-sm text-emerald-900 leading-tight">{c.item_name}</p>
-                      <p className="text-[10px] font-black text-stone-400 mt-1">QTY: {c.quantity}</p>
+                      <p className="font-bold text-emerald-900 leading-tight">{c.item_name}</p>
+                      <p className="text-[10px] font-black text-stone-400 uppercase">QTY: {c.quantity}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-black text-sm">KES {(parseFloat(c.item_price || 0) * c.quantity).toLocaleString()}</p>
@@ -356,18 +344,14 @@ const Service = () => {
             </div>
 
             <div className="p-8 bg-emerald-50 border-t space-y-6">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Total</span>
-                <span className="text-4xl font-black text-emerald-900">KES {cartTotal.toLocaleString()}</span>
-              </div>
-
+              <div className="flex justify-between items-end"><span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Total</span><span className="text-4xl font-black text-emerald-900">KES {cartTotal.toLocaleString()}</span></div>
               {paymentStatus === 'success' ? (
-                <div className="bg-emerald-100 text-emerald-700 p-4 rounded-xl text-center font-bold">Request Sent! Check your phone.</div>
+                <div className="bg-emerald-100 text-emerald-700 p-4 rounded-xl text-center font-bold">Request Sent!</div>
               ) : (
                 <div className="space-y-4">
-                  <input type="tel" placeholder="M-Pesa Number (07...)" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-6 py-4 rounded-xl border-2 border-emerald-200 outline-none font-bold" />
-                  <button onClick={handleCheckout} disabled={isPaying || cart.length === 0} className="w-full py-5 bg-emerald-900 text-white font-black rounded-xl shadow-xl flex items-center justify-center">
-                    {isPaying ? <Loader2 className="animate-spin" /> : "PAY VIA M-PESA"}
+                  <input type="tel" placeholder="M-Pesa Number" value={phone} onChange={e => setPhone(e.target.value)} className="w-full px-6 py-4 rounded-xl border-2 outline-none font-bold" />
+                  <button onClick={handleCheckout} disabled={isPaying || cart.length === 0} className="w-full py-5 bg-emerald-900 text-white font-black rounded-xl shadow-xl">
+                    {isPaying ? <Loader2 className="animate-spin mx-auto" /> : "PAY VIA M-PESA"}
                   </button>
                 </div>
               )}
