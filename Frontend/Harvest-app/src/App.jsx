@@ -19,7 +19,10 @@ import Service from './pages/Service'
 import FarmcorrsDash from './pages/FarmcorrsDash'
 
 // --- AXIOS INTERCEPTOR CONFIGURATION ---
+// 1. Set the Base URL dynamically
+axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
+// 2. Your existing interceptor
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');

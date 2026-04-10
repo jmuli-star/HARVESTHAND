@@ -7,6 +7,10 @@ import {
   Briefcase, Landmark, BookOpen, PlusCircle, Sun, Moon, Sunrise
 } from 'lucide-react';
 
+// ✅ DYNAMIC URL: Matches logic in LoginToggle and CreateTaskModal
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_VERSION = "/api/v1";
+
 function AdminDash() {
   const navigate = useNavigate();
   
@@ -17,7 +21,6 @@ function AdminDash() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total_users: 0, admin_count: 0, farmhand_count: 0, correspondent_count: 0, institution_count: 0 });
   const [allUsers, setAllUsers] = useState([]);
-
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -36,9 +39,10 @@ function AdminDash() {
     const token = localStorage.getItem('access_token');
     if (!token) { navigate('/login'); return; }
     try {
+      // ✅ Updated to use dynamic URL constants
       const [statsRes, usersRes] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/v1/admin/stats/', getAuthHeaders()),
-        axios.get('http://127.0.0.1:8000/api/v1/users/', getAuthHeaders())
+        axios.get(`${API_BASE_URL}${API_VERSION}/admin/stats/`, getAuthHeaders()),
+        axios.get(`${API_BASE_URL}${API_VERSION}/users/`, getAuthHeaders())
       ]);
       if (statsRes.status === 200) setStats(statsRes.data);
       if (usersRes.status === 200) setAllUsers(usersRes.data);
@@ -52,7 +56,8 @@ function AdminDash() {
   const handleDeleteUser = async () => {
     setIsDeleting(true);
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/v1/admin/stats/${userToDelete.id}/`, getAuthHeaders());
+      // ✅ Updated to use dynamic URL constants
+      await axios.delete(`${API_BASE_URL}${API_VERSION}/admin/stats/${userToDelete.id}/`, getAuthHeaders());
       setUserToDelete(null);
       fetchDashboardData();
     } catch (err) { alert("Operation Failed."); } 

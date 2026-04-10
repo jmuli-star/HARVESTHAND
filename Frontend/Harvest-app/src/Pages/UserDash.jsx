@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import { 
-  User, Mail, ShieldCheck, LogOut, Camera, History, 
-  Award, Smartphone, MessageSquare, ShoppingCart, 
-  Search, Send, X, Building, CheckCircle, Clock,
-  Settings, ArrowRight // Added ArrowRight for better UI
+  User, Mail, ShieldCheck, LogOut, Camera, 
+  MessageSquare, ShoppingCart, Send, X, Building, 
+  Smartphone, Clock, Settings, ArrowRight 
 } from 'lucide-react';
 
 function UserDash() {
-  const navigate = useNavigate(); // 2. Initialize navigate hook
+  const navigate = useNavigate();
   const BASE_URL = 'http://127.0.0.1:8000/api/v1';
   
   // --- State Management ---
@@ -32,12 +31,6 @@ function UserDash() {
   const getAuthHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
   });
-
-  // --- Navigation Method ---
-  const goToServices = () => {
-    // Navigates to the service dashboard route
-    navigate('/services'); 
-  };
 
   // --- Initial Data Load ---
   useEffect(() => {
@@ -125,7 +118,7 @@ function UserDash() {
 
   const handleSignOut = () => {
     localStorage.clear();
-    window.location.href = '/login';
+    navigate('/login');
   };
 
   if (loading) return (
@@ -148,24 +141,23 @@ function UserDash() {
               </button>
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-emerald-900 tracking-tight">
+              <h1 className="text-4xl font-black text-emerald-900 tracking-tight">
                 {greeting}, {user.first_name || 'Grower'}!
               </h1>
-              <p className="text-emerald-700 text-sm font-semibold flex items-center gap-2">
+              <p className="text-emerald-700 text-sm font-bold flex items-center gap-2">
                 <ShieldCheck size={16} /> {user.role?.toUpperCase()} ACCOUNT
               </p>
             </div>
           </div>
           
           <div className="flex gap-4">
-            {/* Added a secondary "Shop" button in header for convenience */}
-            <button onClick={goToServices} className="px-6 py-3 bg-emerald-100 text-emerald-700 rounded-3xl font-bold hover:bg-emerald-200 transition flex items-center gap-2">
+            <button onClick={() => navigate('/services')} className="px-6 py-3 bg-emerald-100 text-emerald-700 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-emerald-200 transition flex items-center gap-2">
                <ShoppingCart size={18} /> Marketplace
             </button>
-            <button onClick={() => setEditModalOpen(true)} className="px-6 py-3 bg-white border border-emerald-200 rounded-3xl font-semibold text-emerald-700 hover:bg-emerald-50 transition shadow-sm flex items-center gap-2">
+            <button onClick={() => setEditModalOpen(true)} className="px-6 py-3 bg-white border border-emerald-200 rounded-3xl font-bold text-xs uppercase tracking-widest text-emerald-700 hover:bg-emerald-50 transition shadow-sm flex items-center gap-2">
               <Settings size={18} /> Settings
             </button>
-            <button onClick={handleSignOut} className="px-6 py-3 bg-white text-rose-600 border border-rose-200 rounded-3xl font-semibold hover:bg-rose-50 transition shadow-sm flex items-center gap-2">
+            <button onClick={handleSignOut} className="px-6 py-3 bg-white text-rose-600 border border-rose-200 rounded-3xl font-bold text-xs uppercase tracking-widest hover:bg-rose-50 transition shadow-sm flex items-center gap-2">
               <LogOut size={18} /> Logout
             </button>
           </div>
@@ -176,23 +168,21 @@ function UserDash() {
           {/* LEFT: FARMHAND DIRECTORY */}
           <div className="lg:col-span-2 space-y-8">
             <section>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-emerald-900 flex items-center gap-3">
-                  <MessageSquare className="text-emerald-600" size={24} /> 
-                  Contact Your Farmhands
-                </h2>
-              </div>
+              <h2 className="text-2xl font-black text-emerald-900 flex items-center gap-3 mb-6">
+                <MessageSquare className="text-emerald-600" size={24} /> 
+                Personnel Directory
+              </h2>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {farmhands.map(hand => (
-                  <div key={hand.id} className="bg-white p-6 rounded-3xl border border-emerald-100 hover:border-emerald-400 hover:shadow-xl transition-all flex items-center justify-between group">
+                  <div key={hand.id} className="bg-white p-6 rounded-[2rem] border border-emerald-100 hover:border-emerald-400 hover:shadow-xl transition-all flex items-center justify-between group">
                     <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-xl font-bold text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                      <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-xl font-black text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                         {hand.email[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-semibold text-stone-800">{hand.email.split('@')[0]}</p>
-                        <p className="text-xs text-stone-500 font-medium">{hand.institution_name || 'Independent'}</p>
+                        <p className="font-bold text-stone-800">{hand.email.split('@')[0]}</p>
+                        <p className="text-[10px] text-stone-400 font-black uppercase tracking-tighter">{hand.institution_name || 'Independent'}</p>
                       </div>
                     </div>
                     <button 
@@ -206,53 +196,52 @@ function UserDash() {
               </div>
             </section>
 
-            {/* UPDATED ORDER CARD: NAVIGATION HUB */}
-            <section className="bg-emerald-800 rounded-3xl p-10 text-white relative overflow-hidden shadow-2xl">
+            {/* NAVIGATION CARD */}
+            <section className="bg-emerald-900 rounded-[2.5rem] p-10 text-white relative overflow-hidden shadow-2xl">
               <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
                 <div>
-                  <h3 className="text-3xl font-bold mb-3">Marketplace & Services</h3>
-                  <p className="text-emerald-100 text-lg">Access certified farm products, professional personnel, and yield collection services.</p>
+                  <h3 className="text-3xl font-black mb-3 tracking-tighter">Marketplace & Services</h3>
+                  <p className="text-emerald-200 font-medium">Access certified farm products, professional personnel, and yield logistics.</p>
                 </div>
-                {/* 3. Navigation trigger */}
                 <button 
-                  onClick={goToServices}
-                  className="bg-amber-500 hover:bg-amber-400 text-emerald-900 font-bold text-lg px-8 py-6 rounded-3xl flex items-center gap-3 transition-all shadow-lg group"
+                  onClick={() => navigate('/services')}
+                  className="bg-amber-500 hover:bg-amber-400 text-emerald-950 font-black text-sm uppercase tracking-widest px-8 py-6 rounded-3xl flex items-center gap-3 transition-all shadow-lg group"
                 >
-                  <ShoppingCart size={26} /> 
+                  <ShoppingCart size={22} /> 
                   Open Dashboard
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
-              <div className="absolute -bottom-4 -right-4 text-9xl opacity-10 rotate-12">🌾</div>
+              <div className="absolute -bottom-4 -right-4 text-9xl opacity-10 rotate-12 select-none">🌾</div>
             </section>
           </div>
 
           {/* RIGHT: ACCOUNT INFO */}
           <div className="space-y-6">
-            <div className="bg-white rounded-3xl p-8 border border-emerald-100 shadow-sm">
-              <h3 className="uppercase text-xs font-bold text-emerald-600 tracking-widest mb-6">Verified Details</h3>
+            <div className="bg-white rounded-[2rem] p-8 border border-emerald-100 shadow-sm">
+              <h3 className="uppercase text-[10px] font-black text-emerald-600 tracking-[0.2em] mb-8">Verified Credentials</h3>
               <div className="space-y-6">
                 <div className="flex gap-4">
                   <Mail size={20} className="text-emerald-500" />
-                  <div><p className="text-[10px] font-bold text-stone-400 uppercase">Email</p><p className="font-semibold text-sm">{user.email}</p></div>
+                  <div><p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Email</p><p className="font-bold text-sm text-stone-800">{user.email}</p></div>
                 </div>
                 <div className="flex gap-4">
                   <Smartphone size={20} className="text-emerald-500" />
-                  <div><p className="text-[10px] font-bold text-stone-400 uppercase">Phone</p><p className="font-semibold text-sm">{user.phone || 'Not provided'}</p></div>
+                  <div><p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Phone</p><p className="font-bold text-sm text-stone-800">{user.phone || 'Not provided'}</p></div>
                 </div>
                 <div className="flex gap-4">
                   <Building size={20} className="text-emerald-500" />
-                  <div><p className="text-[10px] font-bold text-stone-400 uppercase">Institution</p><p className="font-semibold text-sm">{user.institution_name || 'Freelance'}</p></div>
+                  <div><p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Institution</p><p className="font-bold text-sm text-stone-800">{user.institution_name || 'Freelance'}</p></div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-amber-50 rounded-3xl p-8 border border-amber-100">
+            <div className="bg-amber-50 rounded-[2rem] p-8 border border-amber-100">
               <div className="flex items-center gap-3 mb-4">
                 <Clock className="text-amber-600" size={20} />
-                <h4 className="font-bold text-amber-900">Recent History</h4>
+                <h4 className="font-black text-amber-900 uppercase text-xs tracking-widest">Timeline</h4>
               </div>
-              <p className="text-xs text-amber-700/70 font-medium">No recent yield requests found. Contact a farmhand to start.</p>
+              <p className="text-[11px] text-amber-700/70 font-bold leading-relaxed">No recent yield requests found. Coordinate with a farmhand via the directory to begin.</p>
             </div>
           </div>
         </div>
@@ -260,37 +249,30 @@ function UserDash() {
 
       {/* --- FLOATING CHAT BOX --- */}
       {activeChat && (
-        <div className="fixed bottom-8 right-8 w-80 bg-white rounded-3xl shadow-2xl border border-emerald-100 z-50 overflow-hidden flex flex-col animate-in slide-in-from-bottom-5">
-          <div className="bg-emerald-800 text-white p-5 flex justify-between items-center">
+        <div className="fixed bottom-8 right-8 w-80 bg-white rounded-[2rem] shadow-2xl border border-emerald-100 z-50 overflow-hidden flex flex-col animate-in slide-in-from-bottom-5">
+          <div className="bg-emerald-900 text-white p-5 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 bg-white/20 rounded-xl flex items-center justify-center text-xs font-bold uppercase">
+              <div className="h-8 w-8 bg-white/20 rounded-xl flex items-center justify-center text-xs font-black uppercase">
                 {activeChat.email[0]}
               </div>
-              <p className="font-semibold text-sm truncate">{activeChat.email.split('@')[0]}</p>
+              <p className="font-bold text-sm truncate">{activeChat.email.split('@')[0]}</p>
             </div>
             <button onClick={() => setActiveChat(null)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
           </div>
           
           <div className="h-80 overflow-y-auto p-4 bg-emerald-50/50 flex flex-col gap-3">
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full opacity-40">
-                <MessageSquare size={32} className="mb-2 text-emerald-700" />
-                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-tighter">No messages yet</p>
+            {messages.map(msg => (
+              <div key={msg.id} className={`max-w-[85%] p-3 rounded-2xl text-xs shadow-sm ${
+                msg.sender === user.id 
+                  ? 'bg-emerald-600 text-white self-end rounded-tr-none' 
+                  : 'bg-white text-stone-800 self-start rounded-tl-none border border-emerald-100'
+              }`}>
+                {msg.content}
+                <p className={`text-[8px] mt-1 font-black opacity-60 uppercase ${msg.sender === user.id ? 'text-right' : 'text-left'}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
-            ) : (
-              messages.map(msg => (
-                <div key={msg.id} className={`max-w-[85%] p-3 rounded-2xl text-xs shadow-sm ${
-                  msg.sender === user.id 
-                    ? 'bg-emerald-600 text-white self-end rounded-tr-none' 
-                    : 'bg-white text-stone-800 self-start rounded-tl-none border border-emerald-100'
-                }`}>
-                  {msg.content}
-                  <p className={`text-[8px] mt-1 opacity-60 ${msg.sender === user.id ? 'text-right' : 'text-left'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              ))
-            )}
+            ))}
             <div ref={chatEndRef} />
           </div>
 
@@ -300,38 +282,38 @@ function UserDash() {
               type="text" 
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Message..." 
-              className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all" 
+              placeholder="Type message..." 
+              className="flex-1 bg-stone-100 rounded-2xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-200 transition-all" 
             />
-            <button type="submit" className="bg-emerald-600 text-white p-2.5 rounded-xl hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20">
+            <button type="submit" className="bg-emerald-600 text-white p-2.5 rounded-xl hover:bg-emerald-700 transition shadow-md">
               <Send size={18} />
             </button>
           </form>
         </div>
       )}
 
-      {/* --- EDIT MODAL --- */}
+      {/* --- SETTINGS MODAL --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-emerald-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-2xl font-bold text-emerald-900">Settings</h2>
-              <button onClick={() => setEditModalOpen(false)}><X size={24} /></button>
-            </div>
-            <form onSubmit={handleProfileUpdate} className="space-y-5">
-              <div>
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">First Name</label>
-                <input value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} className="w-full px-5 py-3.5 bg-stone-50 border border-stone-100 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Last Name</label>
-                <input value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} className="w-full px-5 py-3.5 bg-stone-50 border border-stone-100 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Phone Contact</label>
-                <input value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full px-5 py-3.5 bg-stone-50 border border-stone-100 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all" />
-              </div>
-              <button type="submit" className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95">Update Profile</button>
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative">
+            <button onClick={() => setEditModalOpen(false)} className="absolute top-8 right-8 text-stone-400 hover:text-stone-900 transition"><X size={24} /></button>
+            <h2 className="text-2xl font-black text-emerald-900 mb-8 uppercase tracking-tighter">Account Settings</h2>
+            <form onSubmit={handleProfileUpdate} className="space-y-6">
+              {[
+                { label: 'First Name', key: 'first_name' },
+                { label: 'Last Name', key: 'last_name' },
+                { label: 'Phone Contact', key: 'phone' }
+              ].map(field => (
+                <div key={field.key}>
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">{field.label}</label>
+                  <input 
+                    value={formData[field.key]} 
+                    onChange={e => setFormData({...formData, [field.key]: e.target.value})} 
+                    className="w-full px-5 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold focus:border-emerald-300 focus:bg-white outline-none transition-all mt-1" 
+                  />
+                </div>
+              ))}
+              <button type="submit" className="w-full py-5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-95">Update Profile</button>
             </form>
           </div>
         </div>

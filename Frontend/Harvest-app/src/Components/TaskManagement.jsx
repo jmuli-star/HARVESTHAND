@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { X, Send, UserCheck } from 'lucide-react';
 
+// ✅ DYNAMIC URL: Logic matches your LoginToggle component
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_VERSION = "/api/v1";
+
 const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
   const [formData, setFormData] = useState({ assigned_to: '', title: '', description: '' });
   const [assignableUsers, setAssignableUsers] = useState([]);
@@ -13,7 +17,8 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
       const fetchUsers = async () => {
         try {
           const token = localStorage.getItem('access_token');
-          const res = await axios.get('http://127.0.0.1:8000/api/v1/management/tasks/assignable_users/', {
+          // ✅ Updated to use dynamic URL
+          const res = await axios.get(`${API_BASE_URL}${API_VERSION}/management/tasks/assignable_users/`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           setAssignableUsers(res.data);
@@ -30,7 +35,8 @@ const CreateTaskModal = ({ isOpen, onClose, onTaskCreated }) => {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      await axios.post('http://127.0.0.1:8000/api/v1/management/tasks/', formData, {
+      // ✅ Updated to use dynamic URL
+      await axios.post(`${API_BASE_URL}${API_VERSION}/management/tasks/`, formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       onTaskCreated(); // Refresh the list in the parent

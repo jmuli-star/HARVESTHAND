@@ -9,6 +9,10 @@ import {
   Settings, Save, Building2
 } from 'lucide-react';
 
+// ✅ DYNAMIC URL: Matches logic in AdminDash and LoginToggle
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_VERSION = "/api/v1";
+
 function FarmcorrsDash() {
   const navigate = useNavigate();
   
@@ -46,8 +50,9 @@ function FarmcorrsDash() {
 
   // --- API Configuration ---
   const token = localStorage.getItem('access_token');
+  // ✅ Updated to use dynamic constants
   const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/v1',
+    baseURL: `${API_BASE_URL}${API_VERSION}`,
     headers: { Authorization: `Bearer ${token}` }
   });
 

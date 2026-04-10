@@ -5,11 +5,13 @@ import {
   LogIn, UserPlus, Leaf, Globe, ShieldCheck, Loader2, KeyRound, ArrowLeft 
 } from 'lucide-react';
 
-const API_BASE = "http://127.0.0.1:8000/api/v1";
+// ✅ DYNAMIC URL: Uses Render URL in production, Localhost in development
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_VERSION = "/api/v1";
 
 function Logintoogle() {
   const [isLogin, setIsLogin] = useState(true);
-  const [isForgotPassword, setIsForgotPassword] = useState(false); // NEW: State for reset flow
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -20,6 +22,8 @@ function Logintoogle() {
   });
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
+
+  // --- GOOGLE AUTH HANDLER ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const access = params.get('access');
@@ -27,15 +31,13 @@ function Logintoogle() {
     const role = params.get('role');
 
     if (access) {
-      // 1. Immediate Storage
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh || '');
       localStorage.setItem('user_role', role || 'user');
 
-      // 2. Clear URL
+      // Clear sensitive data from URL
       window.history.replaceState(null, null, window.location.pathname);
 
-      // 3. Define the routing logic
       const roleRoutes = {
         admin: '/dashboard/admin',
         farmhand: '/dashboard/farmhand',
@@ -44,15 +46,12 @@ function Logintoogle() {
         user: '/dashboard/user'
       };
 
-      setMessage("Google login successful! Welcome to the field. ");
+      setMessage("Google login successful! Welcome to the field. 🌿");
 
-      // 4. CRITICAL: Pre-fetch or Validate before navigating
-      // This "warms up" the backend session so the dashboard doesn't 401
       const verifyAndNavigate = async () => {
         try {
-          await axios.get(`${API_BASE}/auth/user/`, {
-            headers: { Authorization: `Bearer ${access}` }
-          });
+          // Path is relative to the baseURL set in App.jsx
+          await axios.get(`${API_VERSION}/auth/user/`);
           
           setTimeout(() => {
             navigate(roleRoutes[role] || '/dashboard/user');
@@ -72,7 +71,8 @@ function Logintoogle() {
   };
 
   const handleGoogleAuth = () => {
-    window.location.href = `http://127.0.0.1:8000/accounts/google/login/`;
+    // ✅ Redirects to the correct server based on environment
+    window.location.href = `${API_BASE_URL}/accounts/google/login/`;
   };
 
   const redirectUser = (role) => {
@@ -86,12 +86,13 @@ function Logintoogle() {
     navigate(routes[role] || '/dashboard/user');
   };
 
+  // --- STANDARD LOGIN ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage("");
     try {
-      const res = await axios.post(`${API_BASE}/login/`, {
+      const res = await axios.post(`${API_VERSION}/login/`, {
         email: formData.email,
         password: formData.password,
       });
@@ -100,7 +101,7 @@ function Logintoogle() {
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
       
-      setMessage("Welcome back to the field! ");
+      setMessage("Welcome back to the field! 🚜");
       redirectUser(res.data.user.role);
     } catch (err) {
       setMessage(err.response?.data?.detail || "Invalid email or password.");
@@ -109,6 +110,7 @@ function Logintoogle() {
     }
   };
 
+  // --- REGISTRATION ---
   const handleRegister = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.password2) {
@@ -119,7 +121,7 @@ function Logintoogle() {
     setMessage("");
 
     try {
-      const res = await axios.post(`${API_BASE}/register/`, {
+      const res = await axios.post(`${API_VERSION}/register/`, {
         email: formData.email,
         password: formData.password,
         password2: formData.password2,
@@ -127,7 +129,7 @@ function Logintoogle() {
         institution_name: formData.institution_name || ""
       });
 
-      setMessage("Account created successfully! ");
+      setMessage("Account created successfully! 🌱");
       
       if (res.data.access) {
         localStorage.setItem('access_token', res.data.access);
@@ -146,16 +148,16 @@ function Logintoogle() {
     }
   };
 
-  // --- NEW: Reset Password Logic ---
+  // --- PASSWORD RESET ---
   const handleResetRequest = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage("");
     try {
-      await axios.post(`${API_BASE}/auth/password-reset/`, {
+      await axios.post(`${API_VERSION}/auth/password-reset/`, {
         email: formData.email
       });
-      setMessage("Success! Check your email for reset instructions. ");
+      setMessage("Success! Check your email for reset instructions. 📧");
     } catch (err) {
       setMessage(err.response?.data?.email?.[0] || "Could not find an account with that email.");
     } finally {
@@ -171,7 +173,6 @@ function Logintoogle() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-stone-50 to-amber-50 flex items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full">
-        
         <div className="flex items-center justify-center gap-3 mb-10">
           <div className="w-14 h-14 bg-emerald-600 rounded-3xl flex items-center justify-center shadow-xl">
             <Leaf className="text-white w-9 h-9" />
@@ -182,8 +183,6 @@ function Logintoogle() {
         </div>
 
         <div className="bg-white rounded-[2.75rem] shadow-2xl border border-emerald-100 overflow-hidden">
-          
-          {/* Toggle Tab - Hidden when in Reset Mode */}
           {!isForgotPassword && (
             <div className="flex m-4 bg-emerald-50 rounded-[2rem] p-1">
               <button
@@ -232,10 +231,7 @@ function Logintoogle() {
               </>
             )}
 
-            <form 
-                onSubmit={isForgotPassword ? handleResetRequest : (isLogin ? handleLogin : handleRegister)} 
-                className="space-y-6"
-            >
+            <form onSubmit={isForgotPassword ? handleResetRequest : (isLogin ? handleLogin : handleRegister)} className="space-y-6">
               <div>
                 <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Email Address</label>
                 <input
@@ -245,6 +241,7 @@ function Logintoogle() {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  autoComplete="new-email"
                   className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
                 />
               </div>
@@ -259,9 +256,9 @@ function Logintoogle() {
                     value={formData.password}
                     onChange={handleChange}
                     required
+                    autoComplete="new-password"
                     className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
                   />
-                  {/* Forgot Password Link */}
                   {isLogin && (
                     <div className="flex justify-end mt-2">
                       <button
@@ -290,7 +287,6 @@ function Logintoogle() {
                       className="w-full px-6 py-5 bg-emerald-50 border border-emerald-100 rounded-3xl focus:border-emerald-300 outline-none transition-all text-stone-700"
                     />
                   </div>
-                  {/* ... other registration fields remain the same ... */}
                   <div>
                     <label className="block text-xs font-bold text-stone-500 mb-2 uppercase">Farm / Organization</label>
                     <input
@@ -314,7 +310,6 @@ function Logintoogle() {
                       <option value="farmhand">Farm Hand</option>
                       <option value="farmcorrespondent">Farm Correspondent</option>
                       <option value="farminstitution">Farming Institution</option>
-
                     </select>
                   </div>
                 </div>

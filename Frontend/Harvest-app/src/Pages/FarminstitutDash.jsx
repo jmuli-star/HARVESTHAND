@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
-  Building2, Users, TrendingUp, FileText, MapPin, 
+  Building2, Users, TrendingUp, MapPin, 
   UserPlus, Bell, LogOut, Loader2,
   Sun, Moon, Sunrise, Activity, RefreshCcw, Search,
   Mail, ShieldCheck, AlertCircle 
@@ -13,14 +13,13 @@ const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 function FarminstitutDash() {
   const navigate = useNavigate();
   
-  // --- 1. State Management ---
+  // --- 1. STATE MANAGEMENT ---
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [greeting, setGreeting] = useState({ text: 'Welcome', icon: <Activity size={20} /> });
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Data State
   const [stats, setStats] = useState({
     managed_farms_count: 0,
     active_personnel: 0, 
@@ -31,7 +30,7 @@ function FarminstitutDash() {
   const [personnel, setPersonnel] = useState([]); 
   const [notifications, setNotifications] = useState([]);
 
-  // --- 2. Auth Utility ---
+  // --- 2. AUTH UTILITY ---
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
@@ -41,7 +40,7 @@ function FarminstitutDash() {
     return { headers: { Authorization: `Bearer ${token}` } };
   }, [navigate]);
 
-  // --- 3. Dynamic Greeting ---
+  // --- 3. DYNAMIC GREETING ---
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting({ text: 'Good Morning', icon: <Sunrise className="text-amber-500" size={20} /> });
@@ -49,7 +48,7 @@ function FarminstitutDash() {
     else setGreeting({ text: 'Good Evening', icon: <Moon className="text-indigo-400" size={20} /> });
   }, []);
 
-  // --- 4. CORE FETCH LOGIC (Aligned with Backend Endpoints) ---
+  // --- 4. DATA FETCHING ---
   const fetchDashboardData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -58,7 +57,6 @@ function FarminstitutDash() {
     if (!config) return;
 
     try {
-      // Parallel requests for speed
       const [statsRes, farmsRes, personnelRes, notifyRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/institution/stats/`, config),
         axios.get(`${API_BASE_URL}/institution/farms/`, config),
@@ -87,18 +85,18 @@ function FarminstitutDash() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Auto-refresh every 5 minutes
     const interval = setInterval(() => fetchDashboardData(true), 300000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
-  // --- 5. Filtering Logic ---
+  // --- 5. SEARCH LOGIC ---
   const filteredFarms = useMemo(() => {
     return farms.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [farms, searchTerm]);
 
   const filteredPersonnel = useMemo(() => {
     return personnel.filter(p => 
+      p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
       p.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -122,8 +120,8 @@ function FarminstitutDash() {
     <div className="min-h-screen bg-[#FDFDFD] p-6 lg:p-12 font-sans text-stone-900">
       <div className="max-w-7xl mx-auto">
         
-        {/* TOP BAR */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6">
+        {/* TOP NAVIGATION */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-16 gap-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
               {greeting.icon}
@@ -131,7 +129,7 @@ function FarminstitutDash() {
                 {greeting.text} • {localStorage.getItem('institution_name') || 'Authority Hub'}
               </span>
             </div>
-            <h1 className="text-6xl font-black tracking-tighter text-stone-950">
+            <h1 className="text-5xl lg:text-6xl font-black tracking-tighter text-stone-950">
               Estate <span className="text-emerald-600 underline decoration-stone-100">Control</span>
               {refreshing && <RefreshCcw size={24} className="inline ml-6 animate-spin text-emerald-300" />}
             </h1>
@@ -145,41 +143,40 @@ function FarminstitutDash() {
                 placeholder="Search estate assets..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 pr-6 py-4 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 w-72 transition-all outline-none"
+                className="pl-12 pr-6 py-4 bg-stone-50 rounded-2xl border border-stone-100 text-xs font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 w-72 transition-all outline-none shadow-inner"
               />
             </div>
             <button onClick={handleLogout} className="p-4 bg-white border border-stone-100 rounded-2xl text-stone-400 hover:text-rose-500 hover:shadow-lg transition-all">
               <LogOut size={20} />
             </button>
           </div>
-        </div>
+        </header>
 
         {/* METRICS PANEL */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-16">
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-16">
           {[
-            { label: 'Managed Units', val: stats.managed_farms_count, icon: MapPin, color: 'emerald' },
-            { label: 'Active Personnel', val: stats.active_personnel, icon: Users, color: 'blue' },
-            { label: 'Gross Yield', val: stats.avg_yield, icon: TrendingUp, color: 'amber' },
-            { label: 'Audit Alerts', val: stats.pending_reports, icon: AlertCircle, color: 'rose' }
+            { label: 'Managed Units', val: stats.managed_farms_count, icon: MapPin },
+            { label: 'Active Personnel', val: stats.active_personnel, icon: Users },
+            { label: 'Gross Yield', val: stats.avg_yield, icon: TrendingUp },
+            { label: 'Audit Alerts', val: stats.pending_reports, icon: AlertCircle }
           ].map((card, i) => (
-            <div key={i} className="bg-white p-8 rounded-[2rem] border border-stone-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)] hover:shadow-xl transition-all border-b-4 border-b-stone-100 hover:border-b-emerald-500">
-              <div className={`w-10 h-10 rounded-xl bg-stone-50 flex items-center justify-center mb-6`}>
-                <card.icon size={20} className={`text-stone-400`} />
+            <div key={i} className="bg-white p-8 rounded-[2rem] border border-stone-50 shadow-sm hover:shadow-md transition-all border-b-4 border-b-stone-100 hover:border-b-emerald-500">
+              <div className="w-10 h-10 rounded-xl bg-stone-50 flex items-center justify-center mb-6">
+                <card.icon size={20} className="text-stone-400" />
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-stone-400 mb-2">{card.label}</p>
               <h3 className="text-4xl font-black text-stone-900">{card.val}</h3>
             </div>
           ))}
-        </div>
+        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          
-          {/* MAIN TABLES */}
+          {/* PRIMARY CONTENT TABLES */}
           <div className="lg:col-span-2 space-y-12">
             
-            {/* FARMS MONITOR */}
+            {/* OPERATIONAL UNITS */}
             <section className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm overflow-hidden">
-              <div className="p-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/30">
+              <div className="p-8 border-b border-stone-50 flex items-center bg-stone-50/30">
                 <h3 className="font-black text-stone-900 uppercase tracking-widest text-[11px] flex items-center gap-2">
                    <Building2 size={16} className="text-emerald-600" /> Operational Farming Units
                 </h3>
@@ -195,10 +192,10 @@ function FarminstitutDash() {
                   </thead>
                   <tbody className="divide-y divide-stone-50">
                     {filteredFarms.map((farm) => (
-                      <tr key={farm.id} className="hover:bg-stone-50/50 transition-colors cursor-default">
+                      <tr key={farm.id} className="hover:bg-stone-50/50 transition-colors">
                         <td className="px-8 py-6">
                           <p className="font-black text-stone-800">{farm.name}</p>
-                          <p className="text-[10px] text-stone-400 font-medium uppercase tracking-tighter">{farm.location}</p>
+                          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">{farm.location}</p>
                         </td>
                         <td className="px-8 py-6 text-stone-500 text-sm font-bold">{farm.farmhand_name || 'Unassigned'}</td>
                         <td className="px-8 py-6">
@@ -216,15 +213,15 @@ function FarminstitutDash() {
               </div>
             </section>
 
-            {/* STAFF DIRECTORY */}
+            {/* PERSONNEL DIRECTORY */}
             <section className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm overflow-hidden">
-              <div className="p-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/30">
+              <div className="p-8 border-b border-stone-50 flex items-center bg-stone-50/30">
                 <h3 className="font-black text-stone-900 uppercase tracking-widest text-[11px] flex items-center gap-2">
                    <ShieldCheck size={16} className="text-blue-600" /> Human Capital
                 </h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-left">
                   <tbody className="divide-y divide-stone-50">
                     {filteredPersonnel.map((p, i) => (
                       <tr key={i} className="hover:bg-stone-50/50 transition-colors">
@@ -245,7 +242,7 @@ function FarminstitutDash() {
                         <td className="px-8 py-6 text-right">
                            <div className="inline-flex items-center gap-2 bg-emerald-50 px-3 py-1 rounded-full">
                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                             <span className="text-[9px] font-black text-emerald-700 uppercase">{p.status}</span>
+                             <span className="text-[9px] font-black text-emerald-700 uppercase">{p.status || 'Active'}</span>
                            </div>
                         </td>
                       </tr>
@@ -256,8 +253,8 @@ function FarminstitutDash() {
             </section>
           </div>
 
-          {/* SIDEBAR ACTIONS */}
-          <div className="space-y-8">
+          {/* SIDEBAR STRATEGY & LOGS */}
+          <aside className="space-y-8">
             <div className="bg-emerald-600 rounded-[2.5rem] p-10 text-white shadow-2xl shadow-emerald-200/50 relative overflow-hidden group">
               <div className="relative z-10">
                 <h4 className="text-emerald-200 font-black uppercase tracking-widest text-[10px] mb-4">Deployment</h4>
@@ -272,7 +269,7 @@ function FarminstitutDash() {
               <Users size={140} className="absolute -bottom-10 -right-10 text-emerald-500/30 rotate-12 group-hover:scale-110 transition-transform" />
             </div>
 
-            {/* LOGS */}
+            {/* LOGS / NOTIFICATIONS */}
             <div className="bg-white rounded-[2.5rem] p-8 border border-stone-100 shadow-sm">
               <h4 className="font-black uppercase tracking-widest text-[11px] text-stone-900 mb-8 flex items-center gap-3">
                 <Bell size={16} className="text-rose-500" /> Estate Intelligence
@@ -291,7 +288,7 @@ function FarminstitutDash() {
                 )}
               </div>
             </div>
-          </div>
+          </aside>
 
         </div>
       </div>
