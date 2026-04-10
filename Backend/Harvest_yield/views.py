@@ -67,31 +67,49 @@ class GoogleLoginView(APIView):
         except ValueError:
             return Response({'error': 'Invalid Google Token'}, status=status.HTTP_400_BAD_REQUEST)
 #google auth@api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def social_token_exchange(request):
     """
-    This view is triggered after a successful Google OAuth redirect.
-    It converts the Django Session into JWT tokens for React.
+    This view handles the hand-off from Google Session to React JWT.
     """
+    if not request.user.is_authenticated:
+        return redirect("http://localhost:5173/login?error=auth_failed")
+
     user = request.user
-    
-    # Generate SimpleJWT tokens for the user
     refresh = RefreshToken.for_user(user)
     
-    # Define your React Dashboard URL
-    # Vite usually runs on 5173
-    frontend_base_url = "http://localhost:5173/dashboard/user" 
+    # Send tokens back to your React login page
+    # Your Logintoogle.jsx useEffect will catch these
+    frontend_url = "http://localhost:5173/login"
     
-    # Attach tokens as URL fragments (cleaner than query params for SPAs)
     redirect_url = (
-        f"{frontend_base_url}#access={str(refresh.access_token)}"
+        f"{frontend_url}?access={str(refresh.access_token)}"
         f"&refresh={str(refresh)}"
         f"&role={getattr(user, 'role', 'user')}"
     )
     
     return redirect(redirect_url)
 
-# Harvest_yield/views.py
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_user_after_social(request):
+    """
+    Optional 'Check-In' endpoint for React to verify the session 
+    and get fresh tokens if the redirect fails.
+    """
+    user = request.user
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'role': user.role
+        }
+    })
+
 
 class AdminDashboardStatsView(APIView):
     """

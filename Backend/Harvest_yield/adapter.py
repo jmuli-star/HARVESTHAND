@@ -35,3 +35,10 @@ class MySocialAccountAdapter(DefaultSocialAccountAdapter):
         except User.DoesNotExist:
             # If user doesn't exist, Allauth continues with normal signup
             pass
+     #Redirect url   
+    def get_login_redirect_url(self, request):
+        """
+        Forces the redirect to the React Frontend Dashboard 
+        after a successful Google login.
+        """
+        return "http://localhost:5173/dashboard"

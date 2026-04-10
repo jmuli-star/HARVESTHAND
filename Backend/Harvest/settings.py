@@ -114,7 +114,7 @@ AUTHENTICATION_BACKENDS = {
 
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_EMAIL_VERIFICATION = 'optional'
-ACOOUNT_SIGNUP_FIELDS =[]
+ACOOUNT_SIGNUP_FIELDS =['email*', 'password1*','password2*']
 
 # ACCOUNT_SIGNUP_FIELDS = ['email', 'password1', 'password2']
 
@@ -122,7 +122,15 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = None
 ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_USER_MODEL_EMAIL_FIELD = 'email'
 ACCOUNT_EMAIL_REQUIRED = True
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+#email config
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER='muli2917@gmail.com'
+EMAIL_HOST_PASSWORD='zysw qybw bege dzbv'
+
 # Password Reset Settings
 PASSWORD_RESET_TIMEOUT = 3600  # 1 hour
 #actual React URL for the reset confirmation page.
@@ -132,6 +140,8 @@ URL_FRONTEND = "http://localhost:5173"
 
 SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'
 SOCIALACCOUNT_AUTO_SIGNUP = True  # Maps Google data directly to User model
+
+SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_QUERY_EMAIL = True  # Queries Google for the email address
 ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
 
@@ -204,7 +214,8 @@ USE_TZ = True
 
 REST_FRAMEWORK ={
     'DEFAULT_AUTHENTICATION_CLASSES':[
-        'rest_framework_simplejwt.authentication.JWTAuthentication'
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ],
 }
 SIMPLE_JWT = {
@@ -227,7 +238,7 @@ SIMPLE_JWT = {
 #Mpesa settings
 MPESA_ENVIRONMENT = 'sandbox'
 MPESA_SHORTCODE_TYPE ='paybill'
-MPESA_INITIATOR_SECURITY_CREDENTIAL = config('MPESA_INITIATOR_SECURITY_CREDENTIAL')
+MPESA_INITIATOR_SECURITY_CREDENTIAL = 'Safaricom123!!'
 
 MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY')
 MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET')
@@ -242,7 +253,15 @@ STATIC_URL = 'static/'
 SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 
-CORS_ALLOW_ALL_ORIGINS = True
 
-LOGIN_REDIRECT_URL = '/api/v1/auth/social-exchange/'
+
+# Also add these to ensure CORS and Cookies behave with the frontend
+
+CORS_ALLOW_ALL_ORIGINS = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
 LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/api/v1/auth/social-exchange/'
+OLD_PASSWORD_FIELD_ENABLED = True
+LOGOUT_ON_PASSWORD_CHANGE = False
+PASSWORD_RESET_SERIALIZER = 'dj_rest_auth.serializers.PasswordResetSerializer'

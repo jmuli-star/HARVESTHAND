@@ -1,19 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    # Operational Views
-    FarmViewSet, UserRoleViewSet, UserListViewSet,
-    # Auth Views
-    RegisterView, CustomTokenObtainPairView, GoogleLoginView, social_token_exchange,
-    UserProfileView, PasswordResetRequestView,  # Added Reset View
-    # Institution Views
-    InstitutionStatsView, InstitutionNotificationView, 
-    InstitutionPersonnelListView, InstitutionFarmListView,
-    # Admin Views
-    AdminDashboardStatsView, AdminRegistrationView,PasswordResetConfirmView,
-    # Production Views
-    BatchListCreateView
-)
+from .views import *
 from rest_framework_simplejwt.views import TokenRefreshView
 
 # ROUTER CONFIGURATION
@@ -37,6 +24,7 @@ urlpatterns = [
     # Google OAuth & Token Exchange
     path('auth/google-login/', GoogleLoginView.as_view(), name='google_login_api'),
     path('auth/social-exchange/', social_token_exchange, name='social_token_exchange'),
+    path('api/v1/auth/callback/tokens/', get_current_user_after_social, name='social_callback_tokens'),
     
     # Standard JWT Identity Management
     path('register/', RegisterView.as_view(), name='register'),
