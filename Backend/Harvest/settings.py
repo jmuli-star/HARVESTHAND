@@ -32,7 +32,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*' , 'https://harvest-m05sz8mux-jmuli-stars-projects.vercel.app']
 
 cloudinary.config(
     api_key ='342591382866162',

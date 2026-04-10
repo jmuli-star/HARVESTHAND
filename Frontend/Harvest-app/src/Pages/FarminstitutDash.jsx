@@ -8,7 +8,10 @@ import {
   Mail, ShieldCheck, AlertCircle 
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
+// --- CONFIGURATION ---
+// Dynamically switches between your Render backend and local testing
+const API_ROOT = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = `${API_ROOT}/api/v1`;
 
 function FarminstitutDash() {
   const navigate = useNavigate();
@@ -31,6 +34,7 @@ function FarminstitutDash() {
   const [notifications, setNotifications] = useState([]);
 
   // --- 2. AUTH UTILITY ---
+  // Ensure the key 'access_token' matches what you save during login
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
@@ -65,9 +69,9 @@ function FarminstitutDash() {
       ]);
 
       setStats(statsRes.data);
-      setFarms(farmsRes.data);
-      setPersonnel(personnelRes.data);
-      setNotifications(notifyRes.data);
+      setFarms(Array.isArray(farmsRes.data) ? farmsRes.data : []);
+      setPersonnel(Array.isArray(personnelRes.data) ? personnelRes.data : []);
+      setNotifications(Array.isArray(notifyRes.data) ? notifyRes.data : []);
       setError(null);
     } catch (err) {
       console.error("Authority Hub Sync Error:", err);
@@ -85,20 +89,21 @@ function FarminstitutDash() {
 
   useEffect(() => {
     fetchDashboardData();
+    // Auto-refresh every 5 minutes
     const interval = setInterval(() => fetchDashboardData(true), 300000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
   // --- 5. SEARCH LOGIC ---
   const filteredFarms = useMemo(() => {
-    return farms.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    return farms.filter(f => (f.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
   }, [farms, searchTerm]);
 
   const filteredPersonnel = useMemo(() => {
     return personnel.filter(p => 
-      p.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.email.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.role.toLowerCase().includes(searchTerm.toLowerCase())
+      (p.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (p.email || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (p.role || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [personnel, searchTerm]);
 
@@ -200,9 +205,9 @@ function FarminstitutDash() {
                         <td className="px-8 py-6 text-stone-500 text-sm font-bold">{farm.farmhand_name || 'Unassigned'}</td>
                         <td className="px-8 py-6">
                           <div className="flex items-center justify-end gap-3">
-                            <span className="font-black text-stone-900 text-[10px]">{farm.yield_performance}%</span>
+                            <span className="font-black text-stone-900 text-[10px]">{farm.yield_performance || 0}%</span>
                             <div className="w-24 h-1.5 bg-stone-100 rounded-full overflow-hidden">
-                               <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${farm.yield_performance}%` }} />
+                               <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${farm.yield_performance || 0}%` }} />
                             </div>
                           </div>
                         </td>

@@ -7,6 +7,10 @@ import {
   Check, Loader2, Settings, Calendar, Inbox
 } from 'lucide-react';
 
+// --- CONFIGURATION ---
+const API_ROOT = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const BASE_URL = `${API_ROOT}/api/v1`;
+
 function FarmhandDash() {
   const navigate = useNavigate();
   
@@ -45,10 +49,11 @@ function FarmhandDash() {
   });
 
   // --- 2. API CONFIG ---
-  const api = axios.create({
-    baseURL: 'http://127.0.0.1:8000/api/v1',
-    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-  });
+  // We use a helper for headers to ensure we always grab the freshest token
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return { headers: { Authorization: `Bearer ${token}` } };
+  };
 
   const handleLogout = () => {
     localStorage.clear();
@@ -59,8 +64,10 @@ function FarmhandDash() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const userRes = await api.get('/auth/user/'); 
+      const config = getAuthHeaders();
+      const userRes = await axios.get(`${BASE_URL}/auth/user/`, config); 
       const u = userRes.data;
+      
       setUserId(u.id);
       setUserName(u.first_name || u.email.split('@')[0]);
       setProfileForm({
@@ -70,17 +77,20 @@ function FarmhandDash() {
         associated_institution: u.associated_institution || ''
       });
 
-      const usersRes = await api.get('/users/');
-      setInstitutions(usersRes.data.filter(u => u.role === 'farminstitution'));
-      setCorrespondents(usersRes.data.filter(u => u.role === 'farmcorrespondent'));
-      setGrowers(usersRes.data.filter(u => u.role === 'user')); 
+      const usersRes = await axios.get(`${BASE_URL}/users/`, config);
+      const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
+      
+      setInstitutions(allUsers.filter(u => u.role === 'farminstitution'));
+      setCorrespondents(allUsers.filter(u => u.role === 'farmcorrespondent'));
+      setGrowers(allUsers.filter(u => u.role === 'user')); 
 
       const [batchRes, taskRes] = await Promise.all([
-        api.get('/batches/'),
-        api.get('/management/tasks/')
+        axios.get(`${BASE_URL}/batches/`, config),
+        axios.get(`${BASE_URL}/management/tasks/`, config)
       ]);
-      setBatches(batchRes.data);
-      setTasks(taskRes.data);
+      
+      setBatches(Array.isArray(batchRes.data) ? batchRes.data : []);
+      setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
 
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
@@ -95,7 +105,7 @@ function FarmhandDash() {
   // --- 4. CHAT LOGIC ---
   const fetchMessages = async (otherUserId) => {
     try {
-      const res = await api.get(`/messages/chat/?other_user_id=${otherUserId}`);
+      const res = await axios.get(`${BASE_URL}/messages/chat/?other_user_id=${otherUserId}`, getAuthHeaders());
       setMessages(res.data);
     } catch (err) { console.error("Chat sync error:", err); }
   };
@@ -117,10 +127,10 @@ function FarmhandDash() {
     e.preventDefault();
     if (!newMessage.trim() || !activeChat) return;
     try {
-      const res = await api.post('/messages/chat/', {
+      const res = await axios.post(`${BASE_URL}/messages/chat/`, {
         receiver: activeChat.id,
         content: newMessage
-      });
+      }, getAuthHeaders());
       setMessages([...messages, res.data]);
       setNewMessage('');
     } catch (err) { alert("Message failed."); }
@@ -130,7 +140,7 @@ function FarmhandDash() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     try {
-      await api.patch('/auth/user/update/', profileForm);
+      await axios.patch(`${BASE_URL}/auth/user/update/`, profileForm, getAuthHeaders());
       setShowSettingsModal(false);
       fetchData();
       alert("Profile updated! 🌾");
@@ -140,19 +150,20 @@ function FarmhandDash() {
   const handlePostBatch = async (e) => {
     e.preventDefault();
     try {
-      const batchRes = await api.post('/batches/', {
+      const config = getAuthHeaders();
+      const batchRes = await axios.post(`${BASE_URL}/batches/`, {
         ...newBatch,
         quantity_kg: parseFloat(newBatch.quantity_kg),
-      });
+      }, config);
       
       if (newBatch.recipient) {
-        await api.post('/management/reports/', {
+        await axios.post(`${BASE_URL}/management/reports/`, {
           title: `Harvest Log: ${newBatch.crop_name}`,
           message: `New harvest logged: ${newBatch.quantity_kg}kg.`,
           recipient: parseInt(newBatch.recipient),
           batch: batchRes.data.id,
           category: 'Harvest'
-        });
+        }, config);
       }
 
       setShowBatchModal(false);
@@ -169,10 +180,10 @@ function FarmhandDash() {
   const handlePostReport = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/management/reports/', {
+      await axios.post(`${BASE_URL}/management/reports/`, {
         ...newReport,
         recipient: parseInt(newReport.recipient)
-      });
+      }, getAuthHeaders());
       setShowReportModal(false);
       setNewReport({ title: '', message: '', category: 'Safety', recipient: '', batch: '' });
       fetchData();
@@ -241,15 +252,16 @@ function FarmhandDash() {
               {growers.map(grower => (
                 <div key={grower.id} className="p-6 flex items-center justify-between border-b border-stone-50 last:border-0 hover:bg-white transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center font-black">{grower.email[0].toUpperCase()}</div>
+                    <div className="w-10 h-10 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center font-black">{(grower.email || 'U')[0].toUpperCase()}</div>
                     <div>
-                      <p className="font-bold text-stone-800">{grower.email.split('@')[0]}</p>
+                      <p className="font-bold text-stone-800">{(grower.email || '').split('@')[0]}</p>
                       <p className="text-[10px] text-emerald-600 font-black uppercase">Message Request</p>
                     </div>
                   </div>
                   <button onClick={() => { setActiveChat(grower); setMessages([]); }} className="p-3 bg-stone-900 text-white rounded-xl hover:bg-emerald-600 transition shadow-md"><MessageSquare size={18} /></button>
                 </div>
               ))}
+              {growers.length === 0 && <p className="p-10 text-center text-xs text-stone-400 font-bold uppercase">No growers found</p>}
             </div>
           </section>
 
@@ -276,8 +288,8 @@ function FarmhandDash() {
         <div className="fixed bottom-8 right-8 w-80 bg-white rounded-[2rem] shadow-2xl border border-stone-100 z-[110] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5">
           <div className="bg-stone-900 text-white p-5 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-xs font-black">{activeChat.email[0].toUpperCase()}</div>
-              <p className="font-bold text-sm">{activeChat.email.split('@')[0]}</p>
+              <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-xs font-black">{(activeChat.email || 'U')[0].toUpperCase()}</div>
+              <p className="font-bold text-sm">{(activeChat.email || '').split('@')[0]}</p>
             </div>
             <button onClick={() => setActiveChat(null)} className="text-stone-400 hover:text-white"><X size={20} /></button>
           </div>
@@ -296,7 +308,7 @@ function FarmhandDash() {
         </div>
       )}
 
-      {/* MODALS (Simplified for brevity, following the style of Batch) */}
+      {/* HARVEST MODAL */}
       {showBatchModal && (
         <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-6">
           <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl">
@@ -325,6 +337,24 @@ function FarmhandDash() {
                 {correspondents.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
               </select>
               <button type="submit" className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl shadow-lg mt-4">Submit Batch</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SETTINGS MODAL */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-stone-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black">Profile Settings</h2>
+              <button onClick={() => setShowSettingsModal(false)}><X size={24} /></button>
+            </div>
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <input placeholder="First Name" value={profileForm.first_name} onChange={e => setProfileForm({...profileForm, first_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold" />
+              <input placeholder="Last Name" value={profileForm.last_name} onChange={e => setProfileForm({...profileForm, last_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold" />
+              <input placeholder="Phone" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold" />
+              <button type="submit" className="w-full py-5 bg-stone-900 text-white font-black rounded-2xl shadow-lg mt-4">Update Profile</button>
             </form>
           </div>
         </div>

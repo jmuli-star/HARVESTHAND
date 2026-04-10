@@ -116,7 +116,7 @@ class AdminDashboardStatsView(APIView):
     Logic to provide the 'Total Users' and role-based counts 
     to the Admin Dash cards in one single request.
     """
-    permission_classes = [IsAdminUserRole] # Using Part 3 logic
+    permission_classes = [IsAdminUserRole] 
 
     def get(self, request):
         # Calls the logic from the UserManager in Part 1
@@ -126,7 +126,7 @@ class AdminDashboardStatsView(APIView):
         return Response(serializer.data)
     
 class CustomTokenObtainPairView(TokenObtainPairView):
-    # Tell the view to use your email-based serializer
+   
     serializer_class = MyTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):

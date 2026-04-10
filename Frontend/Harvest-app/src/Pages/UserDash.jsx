@@ -7,9 +7,14 @@ import {
   Smartphone, Clock, Settings, ArrowRight 
 } from 'lucide-react';
 
+// --- CONFIGURATION ---
+// This pulls from your Vercel Environment Variables. 
+// If VITE_API_URL isn't set, it defaults to localhost for your local testing.
+const API_ROOT = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const BASE_URL = `${API_ROOT}/api/v1`;
+
 function UserDash() {
   const navigate = useNavigate();
-  const BASE_URL = 'http://127.0.0.1:8000/api/v1';
   
   // --- State Management ---
   const [user, setUser] = useState({});
@@ -28,9 +33,13 @@ function UserDash() {
     phone: ''
   });
 
-  const getAuthHeaders = () => ({
-    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-  });
+  // Helper to ensure we always have the latest token from storage
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('access_token');
+    return {
+      headers: { Authorization: `Bearer ${token}` }
+    };
+  };
 
   // --- Initial Data Load ---
   useEffect(() => {
@@ -49,16 +58,24 @@ function UserDash() {
         axios.get(`${BASE_URL}/auth/user/`, getAuthHeaders()),
         axios.get(`${BASE_URL}/users/`, getAuthHeaders())
       ]);
+      
       setUser(userRes.data);
       setFormData({
         first_name: userRes.data.first_name || '',
         last_name: userRes.data.last_name || '',
         phone: userRes.data.phone || ''
       });
-      setFarmhands(handsRes.data.filter(u => u.role === 'farmhand'));
+      
+      // Safeguard: Ensure handsRes.data is an array before filtering
+      const usersList = Array.isArray(handsRes.data) ? handsRes.data : [];
+      setFarmhands(usersList.filter(u => u.role === 'farmhand'));
+      
     } catch (err) {
       console.error("Dashboard Load Error:", err);
-      if (err.response?.status === 401) handleSignOut();
+      // If token is invalid or expired, boot to login
+      if (err.response?.status === 401) {
+        handleSignOut();
+      }
     } finally {
       setLoading(false);
     }
@@ -99,6 +116,7 @@ function UserDash() {
       setMessages(prev => [...prev, res.data]);
       setNewMessage('');
     } catch (err) {
+      console.error("Send Error:", err);
       alert("Failed to send message.");
     }
   };
@@ -112,12 +130,13 @@ function UserDash() {
       setEditModalOpen(false);
       alert("Profile updated! 🌾");
     } catch (err) {
-      alert("Update failed.");
+      alert("Update failed. Please check your connection.");
     }
   };
 
   const handleSignOut = () => {
-    localStorage.clear();
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     navigate('/login');
   };
 
@@ -145,7 +164,7 @@ function UserDash() {
                 {greeting}, {user.first_name || 'Grower'}!
               </h1>
               <p className="text-emerald-700 text-sm font-bold flex items-center gap-2">
-                <ShieldCheck size={16} /> {user.role?.toUpperCase()} ACCOUNT
+                <ShieldCheck size={16} /> {(user.role || 'user').toUpperCase()} ACCOUNT
               </p>
             </div>
           </div>
@@ -174,14 +193,14 @@ function UserDash() {
               </h2>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {farmhands.map(hand => (
+                {farmhands.length > 0 ? farmhands.map(hand => (
                   <div key={hand.id} className="bg-white p-6 rounded-[2rem] border border-emerald-100 hover:border-emerald-400 hover:shadow-xl transition-all flex items-center justify-between group">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 rounded-2xl bg-emerald-100 flex items-center justify-center text-xl font-black text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                        {hand.email[0].toUpperCase()}
+                        {(hand.email || 'U')[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-bold text-stone-800">{hand.email.split('@')[0]}</p>
+                        <p className="font-bold text-stone-800">{(hand.email || '').split('@')[0]}</p>
                         <p className="text-[10px] text-stone-400 font-black uppercase tracking-tighter">{hand.institution_name || 'Independent'}</p>
                       </div>
                     </div>
@@ -192,7 +211,9 @@ function UserDash() {
                       <Send size={20} />
                     </button>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-stone-400 font-bold italic">No personnel found.</p>
+                )}
               </div>
             </section>
 
@@ -208,7 +229,7 @@ function UserDash() {
                   className="bg-amber-500 hover:bg-amber-400 text-emerald-950 font-black text-sm uppercase tracking-widest px-8 py-6 rounded-3xl flex items-center gap-3 transition-all shadow-lg group"
                 >
                   <ShoppingCart size={22} /> 
-                  Open Dashboard
+                  Open Marketplace
                   <ArrowRight className="group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
@@ -253,9 +274,9 @@ function UserDash() {
           <div className="bg-emerald-900 text-white p-5 flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 bg-white/20 rounded-xl flex items-center justify-center text-xs font-black uppercase">
-                {activeChat.email[0]}
+                {(activeChat.email || 'U')[0]}
               </div>
-              <p className="font-bold text-sm truncate">{activeChat.email.split('@')[0]}</p>
+              <p className="font-bold text-sm truncate">{(activeChat.email || '').split('@')[0]}</p>
             </div>
             <button onClick={() => setActiveChat(null)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
           </div>

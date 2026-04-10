@@ -6,12 +6,12 @@ import {
   CheckCircle2, Inbox, UserPlus, Send, Target, Briefcase,
   ExternalLink, ChevronRight, LayoutDashboard, ClipboardList,
   Package, LogOut, User as UserIcon, ChevronDown, X, Eye, EyeOff,
-  Settings, Save, Building2
+  Settings, Save, Building2, Loader2
 } from 'lucide-react';
 
-// ✅ DYNAMIC URL: Matches logic in AdminDash and LoginToggle
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const API_VERSION = "/api/v1";
+// --- CONFIGURATION ---
+const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = `${API_ROOT}/api/v1`;
 
 function FarmcorrsDash() {
   const navigate = useNavigate();
@@ -23,7 +23,7 @@ function FarmcorrsDash() {
   const [institutionTasks, setInstitutionTasks] = useState([]);
   const [farmhands, setFarmhands] = useState([]); 
   const [batches, setBatches] = useState([]); 
-  const [institutions, setInstitutions] = useState([]); // For Settings
+  const [institutions, setInstitutions] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userInfo, setUserInfo] = useState({ id: null, name: 'Correspondent', role: 'Staff' });
@@ -38,22 +38,16 @@ function FarmcorrsDash() {
   // Form States
   const [newTask, setNewTask] = useState({ title: '', assigned_to: '', batch: '' });
   const [profileForm, setProfileForm] = useState({
-    first_name: '',
-    last_name: '',
-    phone: '',
-    associated_institution: ''
+    first_name: '', last_name: '', phone: '', associated_institution: ''
   });
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
 
-  // --- API Configuration ---
-  const token = localStorage.getItem('access_token');
-  // ✅ Updated to use dynamic constants
-  const api = axios.create({
-    baseURL: `${API_BASE_URL}${API_VERSION}`,
-    headers: { Authorization: `Bearer ${token}` }
+  // --- API Helper ---
+  const getAuthHeaders = () => ({
+    headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
   });
 
   const handleLogout = () => {
@@ -61,17 +55,19 @@ function FarmcorrsDash() {
     navigate('/login');
   };
 
+  // --- Data Fetching ---
   const fetchData = async () => {
     setLoading(true);
     try {
+      const config = getAuthHeaders();
       const [taskRes, reportRes, instTaskRes, userRes, batchRes, allUsersRes, currentUserRes] = await Promise.all([
-        api.get('/management/tasks/'),
-        api.get('/management/reports/'),
-        api.get('/management/tasks/?source=institution'), 
-        api.get('/management/tasks/assignable_users/'),
-        api.get('/batches/').catch(() => ({ data: [] })),
-        api.get('/users/'),
-        api.get('/auth/user/')
+        axios.get(`${BASE_URL}/management/tasks/`, config),
+        axios.get(`${BASE_URL}/management/reports/`, config),
+        axios.get(`${BASE_URL}/management/tasks/?source=institution`, config), 
+        axios.get(`${BASE_URL}/management/tasks/assignable_users/`, config),
+        axios.get(`${BASE_URL}/batches/`, config).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/users/`, config),
+        axios.get(`${BASE_URL}/auth/user/`, config)
       ]);
       
       setTasks(taskRes.data);
@@ -79,9 +75,8 @@ function FarmcorrsDash() {
       setInstitutionTasks(instTaskRes.data);
       setFarmhands(userRes.data);
       setBatches(batchRes.data);
-      setInstitutions(allUsersRes.data.filter(u => u.role === 'farminstitution'));
+      setInstitutions((allUsersRes.data || []).filter(u => u.role === 'farminstitution'));
 
-      // Set Profile Data
       const u = currentUserRes.data;
       setUserInfo({
         id: u.id,
@@ -97,57 +92,49 @@ function FarmcorrsDash() {
 
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
-      console.error("Error fetching dashboard data:", err);
+      console.error("Sync error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   // --- Handlers ---
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     try {
-      await api.patch('/auth/user/update/', profileForm);
+      await axios.patch(`${BASE_URL}/auth/user/update/`, profileForm, getAuthHeaders());
       setShowSettingsModal(false);
       fetchData();
-      alert("Management profile updated successfully! 🌾");
-    } catch (err) {
-      alert("Failed to update settings.");
-    }
+      alert("Management profile updated! 🌾");
+    } catch (err) { alert("Failed to update settings."); }
   };
 
   const handleAssignTask = async (e) => {
     e.preventDefault();
     if (!newTask.assigned_to) return alert("Please select a recipient.");
-
     try {
-      await api.post('/management/tasks/', {
+      await axios.post(`${BASE_URL}/management/tasks/`, {
         title: newTask.title,
         assigned_to: parseInt(newTask.assigned_to),
         batch: newTask.batch ? parseInt(newTask.batch) : null,
         is_complete: false
-      });
+      }, getAuthHeaders());
       setNewTask({ title: '', assigned_to: '', batch: '' });
-      alert("Task successfully delegated.");
+      alert("Task delegated successfully.");
       fetchData(); 
-    } catch (err) {
-      alert("Error assigning task.");
-    }
+    } catch (err) { alert("Error assigning task."); }
   };
 
   const handleSendFeedback = async (e) => {
     e.preventDefault();
     if (!feedbackText.trim()) return;
     setIsSendingFeedback(true);
-
     try {
-      await api.patch(`/management/reports/${selectedReport.id}/add_feedback/`, {
+      await axios.patch(`${BASE_URL}/management/reports/${selectedReport.id}/add_feedback/`, {
         feedback: feedbackText 
-      });
+      }, getAuthHeaders());
       alert("Directive delivered to field staff.");
       setFeedbackText('');
       setSelectedReport(null);
@@ -165,10 +152,10 @@ function FarmcorrsDash() {
   const displayedReports = showResolved ? reports : pendingReports;
 
   if (loading) return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 flex items-center justify-center">
+    <div className="min-h-screen bg-emerald-50 flex items-center justify-center">
       <div className="flex flex-col items-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-emerald-600"></div>
-        <p className="text-emerald-700 mt-4 text-sm font-medium">Initialising Secure Dashboard...</p>
+        <Loader2 className="animate-spin text-emerald-600" size={48} />
+        <p className="text-emerald-700 mt-4 text-xs font-bold tracking-widest uppercase">Initialising Secure Dashboard...</p>
       </div>
     </div>
   );
@@ -242,7 +229,6 @@ function FarmcorrsDash() {
         </div>
 
         {view === 'overview' ? (
-          /* OVERVIEW VIEW */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-8 space-y-8">
               <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden">
@@ -324,7 +310,6 @@ function FarmcorrsDash() {
             </div>
           </div>
         ) : (
-          /* DELEGATION HUB */
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
             <div className="bg-white rounded-3xl border border-emerald-100 p-10 shadow-sm">
               <div className="flex items-center gap-4 mb-10">
@@ -423,108 +408,40 @@ function FarmcorrsDash() {
         {/* SETTINGS MODAL */}
         {showSettingsModal && (
           <div className="fixed inset-0 bg-emerald-950/70 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
-            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl">
               <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h2 className="text-2xl font-bold text-stone-800">Account Settings</h2>
-                  <p className="text-xs text-stone-400 font-medium mt-1">Management Credentials</p>
-                </div>
-                <button onClick={() => setShowSettingsModal(false)} className="text-stone-300 hover:text-stone-800 transition">
-                  <X size={28} />
-                </button>
+                <h2 className="text-2xl font-bold text-stone-800">Account Settings</h2>
+                <button onClick={() => setShowSettingsModal(false)} className="text-stone-300 hover:text-stone-800 transition"><X size={28} /></button>
               </div>
-              
               <form onSubmit={handleUpdateProfile} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">First Name</label>
-                    <input 
-                      value={profileForm.first_name}
-                      onChange={e => setProfileForm({...profileForm, first_name: e.target.value})}
-                      className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Last Name</label>
-                    <input 
-                      value={profileForm.last_name}
-                      onChange={e => setProfileForm({...profileForm, last_name: e.target.value})}
-                      className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all"
-                    />
-                  </div>
+                  <input placeholder="First Name" value={profileForm.first_name} onChange={e => setProfileForm({...profileForm, first_name: e.target.value})} className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl outline-none" />
+                  <input placeholder="Last Name" value={profileForm.last_name} onChange={e => setProfileForm({...profileForm, last_name: e.target.value})} className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl outline-none" />
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Phone Contact</label>
-                  <input 
-                    value={profileForm.phone}
-                    onChange={e => setProfileForm({...profileForm, phone: e.target.value})}
-                    className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-stone-400 uppercase ml-1">Assigned Institution</label>
-                  <div className="relative">
-                    <select 
-                      value={profileForm.associated_institution}
-                      onChange={e => setProfileForm({...profileForm, associated_institution: e.target.value})}
-                      className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl focus:border-emerald-300 focus:bg-white outline-none appearance-none"
-                    >
-                      <option value="">-- Choose Institution --</option>
-                      {institutions.map(inst => (
-                        <option key={inst.id} value={inst.id}>
-                          {inst.institution_name || inst.email}
-                        </option>
-                      ))}
-                    </select>
-                    <Building2 className="absolute right-5 top-1/2 -translate-y-1/2 text-emerald-300 pointer-events-none" size={20} />
-                  </div>
-                </div>
-
-                <button 
-                  type="submit"
-                  className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg rounded-3xl transition-all shadow-lg flex items-center justify-center gap-3 mt-4"
-                >
-                  <Save size={20} /> Update Credentials
-                </button>
+                <input placeholder="Phone" value={profileForm.phone} onChange={e => setProfileForm({...profileForm, phone: e.target.value})} className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl outline-none" />
+                <select value={profileForm.associated_institution} onChange={e => setProfileForm({...profileForm, associated_institution: e.target.value})} className="w-full px-5 py-4 bg-stone-50 border border-emerald-50 rounded-2xl outline-none">
+                  <option value="">-- Choose Institution --</option>
+                  {institutions.map(inst => <option key={inst.id} value={inst.id}>{inst.institution_name || inst.email}</option>)}
+                </select>
+                <button type="submit" className="w-full py-5 bg-emerald-600 text-white font-bold rounded-3xl shadow-lg mt-4 flex items-center justify-center gap-3"><Save size={20} /> Update Credentials</button>
               </form>
             </div>
           </div>
         )}
 
-        {/* FEEDBACK / REVIEW MODAL */}
+        {/* FEEDBACK MODAL */}
         {selectedReport && (
           <div className="fixed inset-0 bg-emerald-950/70 backdrop-blur-sm z-[110] flex items-center justify-center p-6">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
               <div className="px-8 py-6 border-b flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-emerald-900">Review Field Report</h2>
-                <button onClick={() => setSelectedReport(null)} className="text-stone-400 hover:text-stone-600">
-                  <X size={28} />
-                </button>
+                <button onClick={() => setSelectedReport(null)} className="text-stone-400 hover:text-stone-600"><X size={28} /></button>
               </div>
-
               <div className="p-8">
-                <div className="bg-emerald-50 p-6 rounded-3xl mb-8 italic text-stone-600 border border-emerald-100">
-                  “{selectedReport.message}”
-                </div>
-
+                <div className="bg-emerald-50 p-6 rounded-3xl mb-8 italic text-stone-600 border border-emerald-100">“{selectedReport.message}”</div>
                 <form onSubmit={handleSendFeedback}>
-                  <label className="block text-xs font-bold text-stone-500 mb-3">YOUR DIRECTIVE TO FIELD STAFF</label>
-                  <textarea 
-                    required
-                    rows={5}
-                    placeholder="Write your instructions or feedback here..."
-                    value={feedbackText}
-                    onChange={(e) => setFeedbackText(e.target.value)}
-                    className="w-full px-6 py-5 border border-emerald-100 rounded-3xl focus:outline-none focus:border-emerald-300 resize-none"
-                  />
-                  
-                  <button 
-                    type="submit"
-                    disabled={isSendingFeedback}
-                    className="mt-8 w-full py-6 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white font-bold text-xl rounded-3xl transition-all flex items-center justify-center gap-3"
-                  >
+                  <textarea required rows={5} placeholder="Write your instructions here..." value={feedbackText} onChange={(e) => setFeedbackText(e.target.value)} className="w-full px-6 py-5 border border-emerald-100 rounded-3xl outline-none resize-none" />
+                  <button type="submit" disabled={isSendingFeedback} className="mt-8 w-full py-6 bg-emerald-600 disabled:bg-emerald-300 text-white font-bold text-xl rounded-3xl transition-all flex items-center justify-center gap-3">
                     {isSendingFeedback ? 'Sending...' : <>Send Directive <Send size={24} /></>}
                   </button>
                 </form>

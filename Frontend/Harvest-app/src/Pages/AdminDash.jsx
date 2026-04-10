@@ -7,9 +7,9 @@ import {
   Briefcase, Landmark, BookOpen, PlusCircle, Sun, Moon, Sunrise
 } from 'lucide-react';
 
-// ✅ DYNAMIC URL: Matches logic in LoginToggle and CreateTaskModal
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const API_VERSION = "/api/v1";
+// --- CONFIGURATION ---
+const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = `${API_ROOT}/api/v1`;
 
 function AdminDash() {
   const navigate = useNavigate();
@@ -19,9 +19,13 @@ function AdminDash() {
   const [activeTab, setActiveTab] = useState('all'); 
   const [isDeleting, setIsDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total_users: 0, admin_count: 0, farmhand_count: 0, correspondent_count: 0, institution_count: 0 });
+  const [stats, setStats] = useState({ 
+    total_users: 0, admin_count: 0, farmhand_count: 0, 
+    correspondent_count: 0, institution_count: 0 
+  });
   const [allUsers, setAllUsers] = useState([]);
 
+  // --- Dynamic UI Logic ---
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: "Good Morning", icon: <Sunrise size={16} className="text-amber-500" /> };
@@ -30,43 +34,54 @@ function AdminDash() {
   };
   const greeting = getGreeting();
 
+  // --- Auth Helper ---
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     return { headers: { Authorization: `Bearer ${token}` } };
   }, []);
 
-  const fetchDashboardData = useCallback(async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) { navigate('/login'); return; }
-    try {
-      // ✅ Updated to use dynamic URL constants
-      const [statsRes, usersRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}${API_VERSION}/admin/stats/`, getAuthHeaders()),
-        axios.get(`${API_BASE_URL}${API_VERSION}/users/`, getAuthHeaders())
-      ]);
-      if (statsRes.status === 200) setStats(statsRes.data);
-      if (usersRes.status === 200) setAllUsers(usersRes.data);
-    } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 403) navigate('/login');
-    } finally { setLoading(false); }
-  }, [navigate, getAuthHeaders]);
-
-  useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
-
-  const handleDeleteUser = async () => {
-    setIsDeleting(true);
-    try {
-      // ✅ Updated to use dynamic URL constants
-      await axios.delete(`${API_BASE_URL}${API_VERSION}/admin/stats/${userToDelete.id}/`, getAuthHeaders());
-      setUserToDelete(null);
-      fetchDashboardData();
-    } catch (err) { alert("Operation Failed."); } 
-    finally { setIsDeleting(false); }
-  };
-
   const handleLogout = () => {
     localStorage.clear();
     navigate('/login');
+  };
+
+  // --- Data Management ---
+  const fetchDashboardData = useCallback(async () => {
+    const token = localStorage.getItem('access_token');
+    if (!token) { navigate('/login'); return; }
+    
+    try {
+      const config = getAuthHeaders();
+      const [statsRes, usersRes] = await Promise.all([
+        axios.get(`${BASE_URL}/admin/stats/`, config),
+        axios.get(`${BASE_URL}/users/`, config)
+      ]);
+      
+      if (statsRes.status === 200) setStats(statsRes.data);
+      if (usersRes.status === 200) setAllUsers(usersRes.data);
+    } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
+    } finally { 
+      setLoading(false); 
+    }
+  }, [navigate, getAuthHeaders]);
+
+  useEffect(() => { 
+    fetchDashboardData(); 
+  }, [fetchDashboardData]);
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    try {
+      await axios.delete(`${BASE_URL}/admin/stats/${userToDelete.id}/`, getAuthHeaders());
+      setUserToDelete(null);
+      fetchDashboardData();
+    } catch (err) { 
+      alert("Operation Failed: User could not be removed."); 
+    } finally { 
+      setIsDeleting(false); 
+    }
   };
 
   const filteredUsers = allUsers.filter(u => activeTab === 'all' || u.role === activeTab);
@@ -74,31 +89,23 @@ function AdminDash() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 p-6 lg:p-10 font-sans text-stone-900">
       
-      {/* --- DELETE USER MODAL --- */}
+      {/* DELETE MODAL */}
       {userToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setUserToDelete(null)}></div>
-          <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 animate-in zoom-in duration-200 border border-emerald-100">
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
               <div className="h-16 w-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-6">
                 <Trash2 size={32} />
               </div>
               <h2 className="text-xl font-bold text-emerald-900">Confirm Deletion</h2>
               <p className="text-stone-500 text-sm mb-8 font-medium">
-                Erase <span className="text-emerald-800 font-bold">{userToDelete.email}</span> from the farm?
+                Erase <span className="text-emerald-800 font-bold">{userToDelete.email}</span>?
               </p>
               <div className="flex gap-3 w-full">
-                <button 
-                  onClick={() => setUserToDelete(null)} 
-                  className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleDeleteUser} 
-                  className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg shadow-rose-200 hover:bg-rose-700 transition flex items-center justify-center"
-                >
-                  {isDeleting ? <Loader2 className="animate-spin" size={20} /> : 'Delete User'}
+                <button onClick={() => setUserToDelete(null)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition">Cancel</button>
+                <button onClick={handleDeleteUser} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg hover:bg-rose-700 transition flex items-center justify-center">
+                  {isDeleting ? <Loader2 className="animate-spin" size={20} /> : 'Delete'}
                 </button>
               </div>
             </div>
@@ -106,30 +113,20 @@ function AdminDash() {
         </div>
       )}
 
-      {/* --- LOGOUT MODAL --- */}
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)}></div>
-          <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 animate-in zoom-in duration-200 border border-emerald-100">
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
               <div className="h-16 w-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6">
                 <LogOut size={32} />
               </div>
-              <h2 className="text-xl font-bold text-emerald-900">Ready to leave the field?</h2>
-              <p className="text-stone-500 text-sm mb-8">You will be logged out of the HarvestHub admin panel.</p>
+              <h2 className="text-xl font-bold text-emerald-900">Sign Out?</h2>
+              <p className="text-stone-500 text-sm mb-8">Ready to leave the Farm Command Center?</p>
               <div className="flex gap-3 w-full">
-                <button 
-                  onClick={() => setShowLogoutModal(false)} 
-                  className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition"
-                >
-                  Stay Here
-                </button>
-                <button 
-                  onClick={handleLogout} 
-                  className="flex-1 py-3 rounded-2xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800 transition"
-                >
-                  Logout
-                </button>
+                <button onClick={() => setShowLogoutModal(false)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition">Stay</button>
+                <button onClick={handleLogout} className="flex-1 py-3 rounded-2xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800 transition">Logout</button>
               </div>
             </div>
           </div>
@@ -137,8 +134,7 @@ function AdminDash() {
       )}
 
       <div className="max-w-7xl mx-auto">
-        
-        {/* --- HEADER --- */}
+        {/* HEADER */}
         <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner">🌾</div>
@@ -153,16 +149,12 @@ function AdminDash() {
               <h1 className="text-4xl font-bold tracking-tight text-emerald-900">Farm Command Center</h1>
             </div>
           </div>
-
-          <button 
-            onClick={() => setShowLogoutModal(true)} 
-            className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-3xl font-semibold shadow-sm transition-all hover:shadow-md"
-          >
+          <button onClick={() => setShowLogoutModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-3xl font-semibold shadow-sm transition-all hover:shadow-md">
             <LogOut size={18} /> Logout
           </button>
         </header>
 
-        {/* --- STATS CARDS --- */}
+        {/* STATS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           <StatCard icon={<Users />} label="Total Users" value={stats.total_users} color="emerald" />
           <StatCard icon={<ShieldCheck />} label="Admins" value={stats.admin_count} color="violet" />
@@ -172,8 +164,6 @@ function AdminDash() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* --- MAIN TABLE --- */}
           <div className="lg:col-span-8 bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden">
             <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex gap-2 overflow-x-auto">
               {['all', 'admin', 'farmhand', 'correspondent', 'institution'].map(t => (
@@ -192,32 +182,19 @@ function AdminDash() {
                 </thead>
                 <tbody className="divide-y divide-emerald-50">
                   {loading ? (
-                    <tr>
-                      <td colSpan="3" className="px-8 py-20 text-center">
-                        <Loader2 className="animate-spin mx-auto text-emerald-600" size={28} />
-                      </td>
-                    </tr>
+                    <tr><td colSpan="3" className="px-8 py-20 text-center"><Loader2 className="animate-spin mx-auto text-emerald-600" size={28} /></td></tr>
                   ) : filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan="3" className="px-8 py-12 text-center text-stone-400 font-medium">No users found in this category.</td>
-                    </tr>
+                    <tr><td colSpan="3" className="px-8 py-12 text-center text-stone-400 font-medium">No users in this sector.</td></tr>
                   ) : (
                     filteredUsers.map(user => (
                       <tr key={user.id} className="hover:bg-emerald-50/70 transition-colors">
                         <td className="px-8 py-6">
-                          <div>
-                            <div className="font-semibold text-emerald-900">{user.email}</div>
-                            <div className="text-xs text-stone-400 font-mono">ID: {user.id}</div>
-                          </div>
+                          <div className="font-semibold text-emerald-900">{user.email}</div>
+                          <div className="text-xs text-stone-400 font-mono">ID: {user.id}</div>
                         </td>
-                        <td className="px-8 py-6">
-                          <RoleBadge role={user.role} />
-                        </td>
+                        <td className="px-8 py-6"><RoleBadge role={user.role} /></td>
                         <td className="px-8 py-6 text-right">
-                          <button 
-                            onClick={() => setUserToDelete(user)}
-                            className="p-3 text-stone-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"
-                          >
+                          <button onClick={() => setUserToDelete(user)} className="p-3 text-stone-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all">
                             <Trash2 size={20} />
                           </button>
                         </td>
@@ -229,13 +206,10 @@ function AdminDash() {
             </div>
           </div>
 
-          {/* --- SIDEBAR --- */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-emerald-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10">
-                <h3 className="font-bold text-2xl mb-6 flex items-center gap-3">
-                  <span>🌱</span> Provision New Users
-                </h3>
+                <h3 className="font-bold text-2xl mb-6 flex items-center gap-3"><span>🌱</span> Provision System</h3>
                 <div className="space-y-4">
                   <ProvisionBtn icon={<ShieldCheck />} label="Admin" color="violet" onClick={() => navigate('/register-admin')} />
                   <ProvisionBtn icon={<Briefcase />} label="Farmhand" color="teal" onClick={() => navigate('/register-farmhand')} />
@@ -265,14 +239,7 @@ const StatCard = ({ icon, label, value, color }) => (
 );
 
 const TabBtn = ({ active, onClick, label }) => (
-  <button 
-    onClick={onClick} 
-    className={`px-6 py-2 rounded-3xl text-sm font-semibold transition-all whitespace-nowrap ${
-      active 
-        ? 'bg-emerald-700 text-white shadow-md' 
-        : 'bg-white text-stone-600 hover:bg-emerald-50 border border-emerald-100'
-    }`}
-  >
+  <button onClick={onClick} className={`px-6 py-2 rounded-3xl text-sm font-semibold transition-all whitespace-nowrap ${active ? 'bg-emerald-700 text-white shadow-md' : 'bg-white text-stone-600 hover:bg-emerald-50 border border-emerald-100'}`}>
     {label === 'all' ? 'All Users' : label.charAt(0).toUpperCase() + label.slice(1)}
   </button>
 );
@@ -282,27 +249,17 @@ const RoleBadge = ({ role }) => {
     admin: 'bg-violet-100 text-violet-700',
     farmhand: 'bg-teal-100 text-teal-700',
     correspondent: 'bg-amber-100 text-amber-700',
-    institution: 'bg-emerald-100 text-emerald-700',
-    user: 'bg-stone-100 text-stone-600'
+    institution: 'bg-emerald-100 text-emerald-700'
   };
-  return (
-    <span className={`inline-block text-xs font-bold uppercase px-5 py-1.5 rounded-3xl ${styles[role] || 'bg-stone-100 text-stone-500'}`}>
-      {role}
-    </span>
-  );
+  return <span className={`inline-block text-xs font-bold uppercase px-5 py-1.5 rounded-3xl ${styles[role] || 'bg-stone-100 text-stone-600'}`}>{role}</span>;
 };
 
 const ProvisionBtn = ({ icon, label, onClick, color }) => (
-  <button 
-    onClick={onClick} 
-    className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/20 p-5 rounded-3xl transition-all group border border-white/20"
-  >
+  <button onClick={onClick} className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/20 p-5 rounded-3xl transition-all group border border-white/20">
     <div className={`h-10 w-10 rounded-2xl flex items-center justify-center bg-${color}-500/20 text-${color}-200 group-hover:scale-110 transition-transform`}>
       {React.cloneElement(icon, { size: 22 })}
     </div>
-    <div className="flex-1 text-left">
-      <p className="font-semibold text-white">Create New {label}</p>
-    </div>
+    <div className="flex-1 text-left font-semibold text-white">New {label}</div>
     <PlusCircle size={22} className="text-white/70 group-hover:text-white transition" />
   </button>
 );
