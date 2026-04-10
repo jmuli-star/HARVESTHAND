@@ -269,9 +269,10 @@ SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 CORS_ALLOWED_ORIGINS = [
     "https://harvest-apjw4dx71-jmuli-stars-projects.vercel.app",
-    "http://localhost:3000", # If you still test locally
-    "http://127.0.0.1:3000",
+    "http://localhost:8000", # If you still test locally
+    "http://127.0.0.1:8000",
 ]
+CORS_ALLOW_CREDENTIALS = True
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
