@@ -2,7 +2,7 @@ from django.urls import path
 from . import views
 
 # This namespace must match what you use in your main project urls.py
-app_name = 'services'
+app_name ='services'
 
 urlpatterns = [
     # --- Marketplace Display & Posting ---
