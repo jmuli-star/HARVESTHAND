@@ -1,350 +1,221 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { 
-  AlertTriangle, Send, X, ClipboardList, Plus, 
-  Sun, Sunrise, CloudSun, LogOut, MessageSquare,
-  Check, Loader2, Settings, Calendar, Inbox, RefreshCcw
+  LogOut, Loader2, User, MapPin, Sprout, 
+  Send, FileText, CheckCircle2, AlertCircle, Sun, Moon, Sunrise 
 } from 'lucide-react';
 
-// --- CONFIGURATION ---
-const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, "");
+const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = `${API_ROOT}/api/v1`;
 
 function FarmhandDash() {
   const navigate = useNavigate();
-  
-  // --- 1. STATE MANAGEMENT ---
-  const [tasks, setTasks] = useState([]);
-  const [batches, setBatches] = useState([]);
-  const [growers, setGrowers] = useState([]); 
-  const [correspondents, setCorrespondents] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userName, setUserName] = useState("Farmer");
-  const [userId, setUserId] = useState(null);
-  
-  const [activeChat, setActiveChat] = useState(null); 
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const chatEndRef = useRef(null);
-
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [showBatchModal, setShowBatchModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-
-  const [newReport, setNewReport] = useState({ 
-    title: '', message: '', category: 'Safety', recipient: '', batch: '' 
-  });
-  
-  const [newBatch, setNewBatch] = useState({
-    crop_name: '', variety: '', quantity_kg: '', destination: '',
-    planted_date: new Date().toISOString().split('T')[0],
-    harvest_date: new Date().toISOString().split('T')[0],
-    recipient: '' 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [profile, setProfile] = useState({
+    email: "", id: "", first_name: "", last_name: "",
+    location: "", farm_name: "", crops_managed: ""
   });
 
-  const [profileForm, setProfileForm] = useState({
-    first_name: '', last_name: '', phone: '', associated_institution: ''
-  });
-
-  // --- 2. AUTH & LOGOUT ---
-  const handleLogout = useCallback(() => {
-    localStorage.clear();
-    navigate('/login'); 
-  }, [navigate]);
-
-  const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      handleLogout();
-      return null;
-    }
-    return { headers: { Authorization: `Bearer ${token}` } };
-  }, [handleLogout]);
-
-  // --- 3. DATA FETCHING ---
-  const fetchData = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
-    else setRefreshing(true);
-
-    const config = getAuthHeaders();
-    if (!config) return;
-
-    try {
-      const userRes = await axios.get(`${BASE_URL}/auth/user/`, config); 
-      const u = userRes.data;
-      
-      setUserId(u.id);
-      setUserName(u.first_name || u.email.split('@')[0]);
-      setProfileForm({
-        first_name: u.first_name || '',
-        last_name: u.last_name || '',
-        phone: u.phone || '',
-        associated_institution: u.associated_institution || ''
-      });
-
-      const usersRes = await axios.get(`${BASE_URL}/users/`, config);
-      const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
-      
-      setCorrespondents(allUsers.filter(u => u.role === 'farmcorrespondent'));
-      setGrowers(allUsers.filter(u => u.role === 'user')); 
-
-      const [batchRes, taskRes] = await Promise.all([
-        axios.get(`${BASE_URL}/batches/`, config),
-        axios.get(`${BASE_URL}/management/tasks/`, config)
-      ]);
-      
-      setBatches(Array.isArray(batchRes.data) ? batchRes.data : []);
-      setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
-
-    } catch (err) {
-      console.error("Sync error:", err);
-      if (err.response?.status === 401) handleLogout();
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders, handleLogout]);
-
-  useEffect(() => { 
-    fetchData(); 
-    const interval = setInterval(() => fetchData(true), 60000); // Auto-sync every minute
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  // --- 4. CHAT LOGIC ---
-  const fetchMessages = useCallback(async (otherUserId) => {
-    const config = getAuthHeaders();
-    if (!config) return;
-    try {
-      const res = await axios.get(`${BASE_URL}/messages/chat/?other_user_id=${otherUserId}`, config);
-      setMessages(res.data);
-    } catch (err) { console.error("Chat sync error:", err); }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    let interval;
-    if (activeChat) {
-      fetchMessages(activeChat.id);
-      interval = setInterval(() => fetchMessages(activeChat.id), 3000);
-    }
-    return () => clearInterval(interval);
-  }, [activeChat, fetchMessages]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !activeChat) return;
-    try {
-      const res = await axios.post(`${BASE_URL}/messages/chat/`, {
-        receiver: activeChat.id,
-        content: newMessage
-      }, getAuthHeaders());
-      setMessages(prev => [...prev, res.data]);
-      setNewMessage('');
-    } catch (err) { alert("Message failed to send."); }
-  };
-
-  // --- 5. ACTION HANDLERS ---
-  const handleUpdateProfile = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.patch(`${BASE_URL}/auth/user/update/`, profileForm, getAuthHeaders());
-      setShowSettingsModal(false);
-      fetchData(true);
-      alert("Profile updated! 🌾");
-    } catch (err) { alert("Update failed. Please check your inputs."); }
-  };
-
-  const handlePostBatch = async (e) => {
-    e.preventDefault();
-    try {
-      const config = getAuthHeaders();
-      const batchRes = await axios.post(`${BASE_URL}/batches/`, {
-        ...newBatch,
-        quantity_kg: parseFloat(newBatch.quantity_kg),
-      }, config);
-      
-      if (newBatch.recipient) {
-        await axios.post(`${BASE_URL}/management/reports/`, {
-          title: `Harvest Log: ${newBatch.crop_name}`,
-          message: `New harvest logged: ${newBatch.quantity_kg}kg.`,
-          recipient: parseInt(newBatch.recipient),
-          batch: batchRes.data.id,
-          category: 'Harvest'
-        }, config);
-      }
-
-      setShowBatchModal(false);
-      setNewBatch({ 
-        crop_name: '', variety: '', quantity_kg: '', destination: '', 
-        planted_date: new Date().toISOString().split('T')[0], 
-        harvest_date: new Date().toISOString().split('T')[0], 
-        recipient: '' 
-      });
-      fetchData(true);
-    } catch (err) { alert("Batch Error: Ensure all fields are filled."); }
-  };
+  // Report Form State
+  const [report, setReport] = useState({ title: "", content: "", priority: "normal" });
+  const [statusMsg, setStatusMsg] = useState(null);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return { text: "Good Morning", icon: <Sunrise className="text-amber-500" size={18} /> };
-    if (hour < 17) return { text: "Good Afternoon", icon: <CloudSun className="text-orange-400" size={18} /> };
-    return { text: "Good Evening", icon: <Sun className="text-orange-500" size={18} /> };
+    if (hour < 12) return { text: "Good Morning", icon: <Sunrise size={16} className="text-amber-500" /> };
+    if (hour < 18) return { text: "Good Afternoon", icon: <Sun size={16} className="text-orange-500" /> };
+    return { text: "Good Evening", icon: <Moon size={16} className="text-indigo-400" /> };
   };
-  const { text: greetingText, icon: greetingIcon } = getGreeting();
+  const greeting = getGreeting();
+
+  const getAuthHeaders = useCallback(() => {
+    const token = localStorage.getItem('access_token');
+    return { headers: { Authorization: `Bearer ${token}` } };
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    localStorage.clear();
+    navigate('/login');
+  }, [navigate]);
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/users/me/`, getAuthHeaders());
+      setProfile(res.data);
+    } catch (err) {
+      if (err.response?.status === 401) handleLogout();
+    } finally {
+      setLoading(false);
+    }
+  }, [getAuthHeaders, handleLogout]);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  const handleSendReport = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setStatusMsg(null);
+    try {
+      await axios.post(`${BASE_URL}/reports/`, report, getAuthHeaders());
+      setStatusMsg({ type: 'success', text: 'Report delivered to Command Center.' });
+      setReport({ title: "", content: "", priority: "normal" });
+    } catch (err) {
+      setStatusMsg({ type: 'error', text: 'Transmission failed. Try again.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (loading) return (
-    <div className="min-h-screen bg-emerald-50 flex items-center justify-center">
-      <div className="flex flex-col items-center">
-        <Loader2 className="animate-spin text-emerald-600" size={48} />
-        <p className="text-emerald-700 mt-4 text-[10px] font-black tracking-widest uppercase">Syncing field data...</p>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-emerald-50">
+      <Loader2 className="animate-spin text-emerald-600" size={40} />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#F9FBFA] text-stone-900 pb-20">
-      <div className="max-w-5xl mx-auto px-6 py-10">
-        
-        {/* HEADER */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-xl shadow-emerald-200/50 text-white">👨‍🌾</div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                {greetingIcon}
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700">
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                  {refreshing && <RefreshCcw size={10} className="inline ml-2 animate-spin text-emerald-300" />}
-                </p>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 p-6 lg:p-10 font-sans text-stone-900">
+      
+      {/* LOGOUT MODAL (Kept identical to AdminDash flow) */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="h-16 w-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6"><LogOut size={32} /></div>
+              <h2 className="text-xl font-bold text-emerald-900">Sign Out?</h2>
+              <p className="text-stone-500 text-sm mb-8">Leaving the field for today?</p>
+              <div className="flex gap-3 w-full">
+                <button onClick={() => setShowLogoutModal(false)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition">Stay</button>
+                <button onClick={handleLogout} className="flex-1 py-3 rounded-2xl bg-emerald-700 text-white font-semibold hover:bg-emerald-800 transition">Logout</button>
               </div>
-              <h1 className="text-4xl font-black text-stone-900 tracking-tighter">
-                {greetingText}, <span className="text-emerald-600">{userName}</span>
-              </h1>
             </div>
           </div>
-          <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-stone-100">
-            <button onClick={() => setShowSettingsModal(true)} className="p-3 hover:bg-stone-50 text-stone-600 hover:text-emerald-600 rounded-xl transition-all"><Settings size={20} /></button>
-            <button onClick={handleLogout} className="p-3 hover:bg-rose-50 text-stone-400 hover:text-rose-600 rounded-xl transition-all"><LogOut size={20} /></button>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto">
+        <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-3xl">👨‍🌾</div>
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="flex items-center gap-1.5 bg-white border border-emerald-200 px-3 py-1 rounded-3xl shadow-sm">
+                  {greeting.icon}
+                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">{greeting.text}</span>
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest bg-teal-100 text-teal-700 px-3 py-1 rounded-3xl">FARMHAND</span>
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-emerald-900">{profile.first_name || 'Field Operator'}</h1>
+            </div>
           </div>
+          <button onClick={() => setShowLogoutModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-3xl font-semibold shadow-sm transition-all"><LogOut size={18} /> Logout</button>
         </header>
 
-        {/* QUICK ACTIONS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <button onClick={() => setShowBatchModal(true)} className="group flex items-center justify-between bg-white hover:bg-emerald-600 text-emerald-600 hover:text-white p-8 rounded-[2.5rem] font-black text-2xl shadow-xl shadow-stone-200/50 transition-all active:scale-95">
-            Log Harvest <Plus size={32} className="group-hover:rotate-90 transition-transform bg-emerald-50 text-emerald-600 p-1.5 rounded-full group-hover:bg-emerald-500 group-hover:text-white" />
-          </button>
-          <button onClick={() => setShowReportModal(true)} className="group flex items-center justify-between bg-white hover:bg-rose-600 text-rose-600 hover:text-white p-8 rounded-[2.5rem] font-black text-2xl shadow-xl shadow-stone-200/50 transition-all active:scale-95">
-            Send Report <AlertTriangle size={32} className="group-hover:scale-110 transition-transform" />
-          </button>
-        </div>
-
-        {/* MAIN GRID */}
-        <div className="grid lg:grid-cols-2 gap-10">
-          {/* MESSAGES */}
-          <section>
-            <h2 className="uppercase text-[10px] font-black tracking-[0.2em] text-emerald-700/50 flex items-center gap-2 mb-6"><Inbox size={14} /> Grower Network</h2>
-            <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-xl shadow-stone-200/40 overflow-hidden divide-y divide-stone-50">
-              {growers.map(grower => (
-                <div key={grower.id} className="p-6 flex items-center justify-between hover:bg-emerald-50/30 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-stone-100 text-stone-400 rounded-2xl flex items-center justify-center font-black">
-                      {(grower.email || 'U')[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-black text-stone-800">{(grower.email || '').split('@')[0]}</p>
-                      <p className="text-[10px] text-emerald-600 font-black uppercase tracking-tighter">Direct Chat</p>
-                    </div>
-                  </div>
-                  <button onClick={() => { setActiveChat(grower); setMessages([]); }} className="p-4 bg-stone-900 text-white rounded-2xl hover:bg-emerald-600 transition shadow-lg active:scale-90">
-                    <MessageSquare size={18} />
-                  </button>
-                </div>
-              ))}
-              {growers.length === 0 && <p className="p-10 text-center text-xs text-stone-400 font-bold uppercase">No active growers found</p>}
-            </div>
-          </section>
-
-          {/* TASKS */}
-          <section>
-            <h2 className="uppercase text-[10px] font-black tracking-[0.2em] text-emerald-700/50 flex items-center gap-2 mb-6"><ClipboardList size={14} /> Assigned Duties</h2>
-            <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-xl shadow-stone-200/40 divide-y divide-stone-50 overflow-hidden">
-              {tasks.length > 0 ? tasks.map(task => (
-                <div key={task.id} className="p-6 flex items-center gap-4 hover:bg-emerald-50/30 transition-colors group">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                    <Check size={16} />
-                  </div>
-                  <div>
-                    <h3 className="font-black text-stone-800 leading-tight">{task.title}</h3>
-                    <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest mt-1">{task.category}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* LEFT: PROFILE INFO (The Omitted Fields) */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-white rounded-3xl p-8 border border-emerald-100 shadow-sm">
+              <h3 className="text-emerald-900 font-bold text-lg mb-6 flex items-center gap-2"><User size={20}/> Field Identity</h3>
+              <div className="space-y-4">
+                <InfoItem label="Email Address" value={profile.email} icon={<FileText size={16}/>} />
+                <InfoItem label="Farm Name" value={profile.farm_name || "Unassigned"} icon={<Sprout size={16}/>} />
+                <InfoItem label="Primary Location" value={profile.location || "Earth"} icon={<MapPin size={16}/>} />
+                <div className="pt-4 border-t border-emerald-50">
+                  <span className="text-[10px] font-black uppercase text-stone-400 block mb-2">Crops Managed</span>
+                  <div className="flex flex-wrap gap-2">
+                    {(profile.crops_managed || "General").split(',').map((crop, i) => (
+                      <span key={i} className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-100">{crop.trim()}</span>
+                    ))}
                   </div>
                 </div>
-              )) : <div className="p-12 text-center text-stone-400 font-black uppercase text-[10px] tracking-widest italic">All clear for today</div>}
+              </div>
             </div>
-          </section>
+          </div>
+
+          {/* RIGHT: REPORT SENDING (The New Logic) */}
+          <div className="lg:col-span-8">
+            <div className="bg-white rounded-3xl p-8 border border-emerald-100 shadow-sm relative overflow-hidden">
+              <div className="relative z-10">
+                <h3 className="text-emerald-900 font-bold text-xl mb-2">Field Report</h3>
+                <p className="text-stone-500 text-sm mb-8">Send updates or alerts directly to the Command Center.</p>
+                
+                <form onSubmit={handleSendReport} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-stone-600 uppercase ml-2">Subject</label>
+                      <input 
+                        required
+                        className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 transition"
+                        placeholder="e.g., Irrigation Issue"
+                        value={report.title}
+                        onChange={(e) => setReport({...report, title: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-stone-600 uppercase ml-2">Priority Level</label>
+                      <select 
+                        className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 transition appearance-none"
+                        value={report.priority}
+                        onChange={(e) => setReport({...report, priority: e.target.value})}
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-600 uppercase ml-2">Observations</label>
+                    <textarea 
+                      required
+                      rows="4"
+                      className="w-full bg-emerald-50 border border-emerald-100 rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-emerald-500/20 transition resize-none"
+                      placeholder="Describe the current field status..."
+                      value={report.content}
+                      onChange={(e) => setReport({...report, content: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    {statusMsg && (
+                      <div className={`flex items-center gap-2 text-sm font-semibold ${statusMsg.type === 'success' ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {statusMsg.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
+                        {statusMsg.text}
+                      </div>
+                    )}
+                    <button 
+                      type="submit" 
+                      disabled={isSubmitting}
+                      className="ml-auto flex items-center gap-3 bg-emerald-700 text-white px-8 py-3 rounded-2xl font-bold shadow-lg shadow-emerald-900/10 hover:bg-emerald-800 transition disabled:opacity-50"
+                    >
+                      {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <><Send size={18}/> Submit Report</>}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-
-      {/* CHAT OVERLAY */}
-      {activeChat && (
-        <div className="fixed bottom-8 right-8 w-96 bg-white rounded-[2.5rem] shadow-2xl border border-stone-100 z-[110] flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
-          <div className="bg-stone-900 text-white p-6 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-sm font-black text-white shadow-lg">
-                {(activeChat.email || 'U')[0].toUpperCase()}
-              </div>
-              <div>
-                <p className="font-black text-sm">{(activeChat.email || '').split('@')[0]}</p>
-                <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">Online</p>
-              </div>
-            </div>
-            <button onClick={() => setActiveChat(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors text-stone-400 hover:text-white"><X size={20} /></button>
-          </div>
-          <div className="h-80 overflow-y-auto p-6 bg-stone-50/50 flex flex-col gap-4">
-            {messages.map(msg => (
-              <div key={msg.id} className={`max-w-[80%] p-4 rounded-2xl text-xs font-bold leading-relaxed shadow-sm ${msg.sender === userId ? 'bg-emerald-600 text-white self-end rounded-tr-none' : 'bg-white text-stone-800 self-start rounded-tl-none border border-stone-100'}`}>
-                {msg.content}
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          <form onSubmit={handleSendMessage} className="p-5 border-t border-stone-100 flex gap-3 bg-white">
-            <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 bg-stone-50 border border-stone-100 rounded-2xl px-5 py-3 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all" />
-            <button type="submit" className="bg-emerald-600 text-white p-3 rounded-2xl hover:bg-stone-900 transition shadow-lg active:scale-95"><Send size={18} /></button>
-          </form>
-        </div>
-      )}
-
-      {/* MODALS (Simplified for brevity but standardized) */}
-      {showBatchModal && (
-        <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-black tracking-tighter">Log Harvest</h2>
-              <button onClick={() => setShowBatchModal(false)} className="p-2 hover:bg-stone-100 rounded-full transition-colors"><X size={24} /></button>
-            </div>
-            <form onSubmit={handlePostBatch} className="space-y-4">
-              <input required placeholder="Crop Name (e.g., Arabica Coffee)" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
-              <div className="grid grid-cols-2 gap-4">
-                <input required type="number" placeholder="Weight (KG)" value={newBatch.quantity_kg} onChange={e => setNewBatch({...newBatch, quantity_kg: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
-                <input required placeholder="Storage ID" value={newBatch.destination} onChange={e => setNewBatch({...newBatch, destination: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 outline-none focus:ring-2 focus:ring-emerald-500" />
-              </div>
-              <select required value={newBatch.recipient} onChange={e => setNewBatch({...newBatch, recipient: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 outline-none focus:ring-2 focus:ring-emerald-500">
-                <option value="">Select Manager</option>
-                {correspondents.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
-              </select>
-              <button type="submit" className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-200/50 mt-6 active:scale-95 transition-transform">Submit Harvest Batch</button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
+/* --- Helper Sub-component --- */
+const InfoItem = ({ label, value, icon }) => (
+  <div className="flex flex-col">
+    <span className="text-[10px] font-black uppercase text-stone-400 ml-1">{label}</span>
+    <div className="flex items-center gap-3 bg-emerald-50/50 p-3 rounded-2xl border border-emerald-50 mt-1">
+      <div className="text-emerald-600">{icon}</div>
+      <span className="font-semibold text-emerald-900 text-sm truncate">{value}</span>
+    </div>
+  </div>
+);
 
 export default FarmhandDash;
