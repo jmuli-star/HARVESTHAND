@@ -7,7 +7,9 @@ import {
   ShoppingCart, Trash2, ChevronRight, Minus
 } from 'lucide-react';
 
-const BASE_URL = 'http://127.0.0.1:8000/api/v1/services';
+// --- CONFIGURATION ---
+const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, "");
+const BASE_URL = `${API_ROOT}/api/v1/services`;
 
 // --- SUB-COMPONENT: PRODUCT CARD ---
 const ProductItem = ({ item, onAddToCart }) => {
@@ -87,14 +89,19 @@ const Service = () => {
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
-    return { headers: { Authorization: `Bearer ${token}` } };
+    return { 
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      } 
+    };
   }, []);
 
   const fetchCart = useCallback(async () => {
     try {
       const res = await axios.get(`${BASE_URL}/cart/`, getAuthHeaders());
       setCart(res.data.items || []);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Cart fetch failed", err); }
   }, [getAuthHeaders]);
 
   const fetchData = useCallback(async () => {
@@ -108,7 +115,7 @@ const Service = () => {
       if (catRes.status === 'fulfilled') setCategories(catRes.value.data || []);
       if (itemRes.status === 'fulfilled') setItems(itemRes.value.data || []);
       await fetchCart();
-    } catch (err) { console.error(err); } 
+    } catch (err) { console.error("Data fetch failed", err); } 
     finally { setLoading(false); }
   }, [getAuthHeaders, fetchCart]);
 
@@ -119,14 +126,20 @@ const Service = () => {
       await axios.post(`${BASE_URL}/cart/`, { item_id: item.id, quantity: requestedQty }, getAuthHeaders());
       fetchCart();
       setShowCart(true); 
-    } catch (err) { alert("Stock limit reached"); }
+    } catch (err) { 
+      alert(err.response?.data?.error || "Stock limit reached"); 
+    }
   };
 
   const removeFromCart = async (cartItemId) => {
     try {
+      // Ensure specific resource URL for DELETE
       await axios.delete(`${BASE_URL}/cart/${cartItemId}/`, getAuthHeaders());
       fetchCart();
-    } catch (err) { fetchCart(); }
+    } catch (err) { 
+      console.error("Remove failed", err);
+      fetchCart(); 
+    }
   };
 
   const handleCheckout = async () => {
@@ -138,10 +151,17 @@ const Service = () => {
       if (res.status === 200 || res.status === 201) {
         setPaymentStatus('success');
         setCart([]);
-        setTimeout(() => { setPaymentStatus(null); setShowCart(false); setShowCheckoutStep(false); }, 5000);
+        setTimeout(() => { 
+          setPaymentStatus(null); 
+          setShowCart(false); 
+          setShowCheckoutStep(false); 
+        }, 5000);
       }
-    } catch (err) { setPaymentStatus('error'); } 
-    finally { setIsPaying(false); }
+    } catch (err) { 
+      setPaymentStatus('error'); 
+    } finally { 
+      setIsPaying(false); 
+    }
   };
 
   const cartTotal = useMemo(() => {
@@ -165,8 +185,11 @@ const Service = () => {
       setShowPostModal(false);
       setPostForm({ name: '', description: '', price: '', stock_quantity: '', category_id: '' });
       fetchData();
-    } catch (err) { alert("Error posting."); } 
-    finally { setIsSubmitting(false); }
+    } catch (err) { 
+      alert("Error posting product."); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   if (loading) return (
@@ -177,10 +200,9 @@ const Service = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 text-stone-900 font-sans pb-20">
-      
       <div className="max-w-7xl mx-auto px-6 py-10">
         
-        {/* UPDATED HEADER: Cart is now a button here */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
           <div>
             <button onClick={() => navigate('/dashboard/user')} className="flex items-center gap-2 text-emerald-700 hover:text-emerald-900 font-semibold mb-4">
@@ -192,7 +214,6 @@ const Service = () => {
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            {/* CART BUTTON IN HEADER */}
             <button 
               onClick={() => { setShowCart(true); setShowCheckoutStep(false); }}
               className="relative bg-white border border-emerald-200 text-emerald-900 px-6 py-5 rounded-3xl font-bold flex items-center gap-3 shadow-sm hover:shadow-lg transition-all active:scale-95"
@@ -240,7 +261,7 @@ const Service = () => {
         </div>
       </div>
 
-      {/* SIDE CART DRAWER (Kept same logic, just triggered from header) */}
+      {/* SIDE CART DRAWER */}
       {showCart && (
         <div className="fixed inset-0 z-[150] flex justify-end">
           <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowCart(false)} />
@@ -318,27 +339,27 @@ const Service = () => {
       {showPostModal && (
         <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-sm z-[250] flex items-center justify-center p-6">
           <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden">
-             <div className="px-8 py-6 bg-emerald-50 border-b flex justify-between items-center text-emerald-900">
-               <h2 className="text-2xl font-bold italic">Sell Product</h2>
-               <button onClick={() => setShowPostModal(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
-             </div>
-             <form onSubmit={handlePostSubmit} className="p-8 space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Product Name" />
-                 <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50">
-                   <option value="">Category</option>
-                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                 </select>
-               </div>
-               <div className="grid grid-cols-2 gap-6">
-                 <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Price" />
-                 <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Stock" />
-               </div>
-               <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 resize-none" placeholder="Description" />
-               <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-bold text-xl rounded-[2rem] hover:bg-emerald-700">
-                 {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "PUBLISH"}
-               </button>
-             </form>
+              <div className="px-8 py-6 bg-emerald-50 border-b flex justify-between items-center text-emerald-900">
+                <h2 className="text-2xl font-bold italic">Sell Product</h2>
+                <button onClick={() => setShowPostModal(false)} className="p-2 hover:bg-emerald-100 rounded-full"><X size={24} /></button>
+              </div>
+              <form onSubmit={handlePostSubmit} className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <input required value={postForm.name} onChange={e => setPostForm({...postForm, name: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Product Name" />
+                  <select required value={postForm.category_id} onChange={e => setPostForm({...postForm, category_id: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50">
+                    <option value="">Category</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <input type="number" required value={postForm.price} onChange={e => setPostForm({...postForm, price: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Price" />
+                  <input type="number" required value={postForm.stock_quantity} onChange={e => setPostForm({...postForm, stock_quantity: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50" placeholder="Stock" />
+                </div>
+                <textarea rows={3} required value={postForm.description} onChange={e => setPostForm({...postForm, description: e.target.value})} className="w-full px-6 py-4 border rounded-[1.5rem] bg-stone-50 resize-none" placeholder="Description" />
+                <button type="submit" disabled={isSubmitting} className="w-full py-6 bg-emerald-600 text-white font-bold text-xl rounded-[2rem] hover:bg-emerald-700">
+                  {isSubmitting ? <Loader2 className="animate-spin mx-auto" /> : "PUBLISH"}
+                </button>
+              </form>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -7,13 +7,24 @@ import {
   Briefcase, Landmark, BookOpen, PlusCircle, Sun, Moon, Sunrise
 } from 'lucide-react';
 
-// --- CONFIGURATION ---
 const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = `${API_ROOT}/api/v1`;
 
+// Mapping prevents Tailwind JIT from purging dynamic classes
+const THEME_MAP = {
+  emerald: "bg-emerald-100 text-emerald-600",
+  violet: "bg-violet-100 text-violet-600",
+  teal: "bg-teal-100 text-teal-600",
+  amber: "bg-amber-100 text-amber-600",
+  stone: "bg-stone-100 text-stone-600",
+  provision_emerald: "bg-emerald-500/20 text-emerald-200",
+  provision_violet: "bg-violet-500/20 text-violet-200",
+  provision_teal: "bg-teal-500/20 text-teal-200",
+  provision_amber: "bg-amber-500/20 text-amber-200",
+};
+
 function AdminDash() {
   const navigate = useNavigate();
-  
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null); 
   const [activeTab, setActiveTab] = useState('all'); 
@@ -25,7 +36,6 @@ function AdminDash() {
   });
   const [allUsers, setAllUsers] = useState([]);
 
-  // --- Dynamic UI Logic ---
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: "Good Morning", icon: <Sunrise size={16} className="text-amber-500" /> };
@@ -34,41 +44,33 @@ function AdminDash() {
   };
   const greeting = getGreeting();
 
-  // --- Auth Helper ---
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     return { headers: { Authorization: `Bearer ${token}` } };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.clear();
     navigate('/login');
-  };
+  }, [navigate]);
 
-  // --- Data Management ---
   const fetchDashboardData = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     if (!token) { navigate('/login'); return; }
-    
     try {
       const config = getAuthHeaders();
       const [statsRes, usersRes] = await Promise.all([
         axios.get(`${BASE_URL}/admin/stats/`, config),
         axios.get(`${BASE_URL}/users/`, config)
       ]);
-      
       if (statsRes.status === 200) setStats(statsRes.data);
       if (usersRes.status === 200) setAllUsers(usersRes.data);
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
-    } finally { 
-      setLoading(false); 
-    }
-  }, [navigate, getAuthHeaders]);
+    } finally { setLoading(false); }
+  }, [navigate, getAuthHeaders, handleLogout]);
 
-  useEffect(() => { 
-    fetchDashboardData(); 
-  }, [fetchDashboardData]);
+  useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
 
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
@@ -79,29 +81,21 @@ function AdminDash() {
       fetchDashboardData();
     } catch (err) { 
       alert("Operation Failed: User could not be removed."); 
-    } finally { 
-      setIsDeleting(false); 
-    }
+    } finally { setIsDeleting(false); }
   };
 
   const filteredUsers = allUsers.filter(u => activeTab === 'all' || u.role === activeTab);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 p-6 lg:p-10 font-sans text-stone-900">
-      
-      {/* DELETE MODAL */}
       {userToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setUserToDelete(null)}></div>
           <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-6">
-                <Trash2 size={32} />
-              </div>
+              <div className="h-16 w-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-6"><Trash2 size={32} /></div>
               <h2 className="text-xl font-bold text-emerald-900">Confirm Deletion</h2>
-              <p className="text-stone-500 text-sm mb-8 font-medium">
-                Erase <span className="text-emerald-800 font-bold">{userToDelete.email}</span>?
-              </p>
+              <p className="text-stone-500 text-sm mb-8 font-medium">Erase <span className="text-emerald-800 font-bold">{userToDelete.email}</span>?</p>
               <div className="flex gap-3 w-full">
                 <button onClick={() => setUserToDelete(null)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition">Cancel</button>
                 <button onClick={handleDeleteUser} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg hover:bg-rose-700 transition flex items-center justify-center">
@@ -113,15 +107,12 @@ function AdminDash() {
         </div>
       )}
 
-      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)}></div>
           <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
-              <div className="h-16 w-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6">
-                <LogOut size={32} />
-              </div>
+              <div className="h-16 w-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-6"><LogOut size={32} /></div>
               <h2 className="text-xl font-bold text-emerald-900">Sign Out?</h2>
               <p className="text-stone-500 text-sm mb-8">Ready to leave the Farm Command Center?</p>
               <div className="flex gap-3 w-full">
@@ -134,7 +125,6 @@ function AdminDash() {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* HEADER */}
         <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner">🌾</div>
@@ -149,12 +139,9 @@ function AdminDash() {
               <h1 className="text-4xl font-bold tracking-tight text-emerald-900">Farm Command Center</h1>
             </div>
           </div>
-          <button onClick={() => setShowLogoutModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-3xl font-semibold shadow-sm transition-all hover:shadow-md">
-            <LogOut size={18} /> Logout
-          </button>
+          <button onClick={() => setShowLogoutModal(true)} className="flex items-center gap-2 px-6 py-3 bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 rounded-3xl font-semibold shadow-sm transition-all hover:shadow-md"><LogOut size={18} /> Logout</button>
         </header>
 
-        {/* STATS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           <StatCard icon={<Users />} label="Total Users" value={stats.total_users} color="emerald" />
           <StatCard icon={<ShieldCheck />} label="Admins" value={stats.admin_count} color="violet" />
@@ -170,7 +157,6 @@ function AdminDash() {
                 <TabBtn key={t} active={activeTab === t} onClick={() => setActiveTab(t)} label={t} />
               ))}
             </div>
-            
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -194,9 +180,7 @@ function AdminDash() {
                         </td>
                         <td className="px-8 py-6"><RoleBadge role={user.role} /></td>
                         <td className="px-8 py-6 text-right">
-                          <button onClick={() => setUserToDelete(user)} className="p-3 text-stone-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all">
-                            <Trash2 size={20} />
-                          </button>
+                          <button onClick={() => setUserToDelete(user)} className="p-3 text-stone-400 hover:text-rose-500 hover:bg-rose-50 rounded-2xl transition-all"><Trash2 size={20} /></button>
                         </td>
                       </tr>
                     ))
@@ -226,11 +210,9 @@ function AdminDash() {
   );
 }
 
-/* ==================== SUB-COMPONENTS ==================== */
-
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-white rounded-3xl p-6 border border-emerald-100 shadow-sm hover:shadow-md transition-all">
-    <div className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-${color}-100 text-${color}-600 mb-4`}>
+    <div className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-4 ${THEME_MAP[color]}`}>
       {React.cloneElement(icon, { size: 24 })}
     </div>
     <div className="text-xs font-bold uppercase tracking-widest text-stone-500">{label}</div>
@@ -256,7 +238,7 @@ const RoleBadge = ({ role }) => {
 
 const ProvisionBtn = ({ icon, label, onClick, color }) => (
   <button onClick={onClick} className="w-full flex items-center gap-4 bg-white/10 hover:bg-white/20 p-5 rounded-3xl transition-all group border border-white/20">
-    <div className={`h-10 w-10 rounded-2xl flex items-center justify-center bg-${color}-500/20 text-${color}-200 group-hover:scale-110 transition-transform`}>
+    <div className={`h-10 w-10 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${THEME_MAP[`provision_${color}`]}`}>
       {React.cloneElement(icon, { size: 22 })}
     </div>
     <div className="flex-1 text-left font-semibold text-white">New {label}</div>

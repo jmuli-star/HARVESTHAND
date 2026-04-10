@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// Dynamically switches between your Render backend and local testing
-const API_ROOT = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// Normalizing API_ROOT to ensure no trailing slash conflicts
+const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, "");
 const API_BASE_URL = `${API_ROOT}/api/v1`;
 
 function FarminstitutDash() {
@@ -34,14 +34,18 @@ function FarminstitutDash() {
   const [notifications, setNotifications] = useState([]);
 
   // --- 2. AUTH UTILITY ---
-  // Ensure the key 'access_token' matches what you save during login
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       navigate('/login');
       return null;
     }
-    return { headers: { Authorization: `Bearer ${token}` } };
+    return { 
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      } 
+    };
   }, [navigate]);
 
   // --- 3. DYNAMIC GREETING ---
@@ -61,6 +65,7 @@ function FarminstitutDash() {
     if (!config) return;
 
     try {
+      // Endpoints are called without leading slashes to prevent // in the URL
       const [statsRes, farmsRes, personnelRes, notifyRes] = await Promise.all([
         axios.get(`${API_BASE_URL}/institution/stats/`, config),
         axios.get(`${API_BASE_URL}/institution/farms/`, config),
@@ -183,7 +188,7 @@ function FarminstitutDash() {
             <section className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm overflow-hidden">
               <div className="p-8 border-b border-stone-50 flex items-center bg-stone-50/30">
                 <h3 className="font-black text-stone-900 uppercase tracking-widest text-[11px] flex items-center gap-2">
-                   <Building2 size={16} className="text-emerald-600" /> Operational Farming Units
+                    <Building2 size={16} className="text-emerald-600" /> Operational Farming Units
                 </h3>
               </div>
               <div className="overflow-x-auto">
@@ -222,7 +227,7 @@ function FarminstitutDash() {
             <section className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm overflow-hidden">
               <div className="p-8 border-b border-stone-50 flex items-center bg-stone-50/30">
                 <h3 className="font-black text-stone-900 uppercase tracking-widest text-[11px] flex items-center gap-2">
-                   <ShieldCheck size={16} className="text-blue-600" /> Human Capital
+                    <ShieldCheck size={16} className="text-blue-600" /> Human Capital
                 </h3>
               </div>
               <div className="overflow-x-auto">
@@ -285,7 +290,9 @@ function FarminstitutDash() {
                     <div className="w-1 bg-stone-100 group-hover:bg-emerald-400 transition-colors rounded-full h-auto" />
                     <div>
                       <p className="text-xs font-bold text-stone-800 leading-snug">{n.message}</p>
-                      <p className="text-[9px] font-black text-stone-300 uppercase mt-2 tracking-widest">{n.timestamp}</p>
+                      <p className="text-[9px] font-black text-stone-300 uppercase mt-2 tracking-widest">
+                        {n.timestamp ? new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                      </p>
                     </div>
                   </div>
                 )) : (
@@ -294,7 +301,6 @@ function FarminstitutDash() {
               </div>
             </div>
           </aside>
-
         </div>
       </div>
     </div>

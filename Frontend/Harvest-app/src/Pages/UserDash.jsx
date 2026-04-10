@@ -8,9 +8,8 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// This pulls from your Vercel Environment Variables. 
-// If VITE_API_URL isn't set, it defaults to localhost for your local testing.
-const API_ROOT = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+// Standardizing the root to ensure no trailing slash conflicts
+const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, "");
 const BASE_URL = `${API_ROOT}/api/v1`;
 
 function UserDash() {
@@ -33,11 +32,14 @@ function UserDash() {
     phone: ''
   });
 
-  // Helper to ensure we always have the latest token from storage
+  // Helper for consistent headers
   const getAuthHeaders = () => {
     const token = localStorage.getItem('access_token');
     return {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
     };
   };
 
@@ -54,6 +56,7 @@ function UserDash() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
+      // Removed leading slashes from endpoints to flow with BASE_URL
       const [userRes, handsRes] = await Promise.all([
         axios.get(`${BASE_URL}/auth/user/`, getAuthHeaders()),
         axios.get(`${BASE_URL}/users/`, getAuthHeaders())
@@ -66,16 +69,12 @@ function UserDash() {
         phone: userRes.data.phone || ''
       });
       
-      // Safeguard: Ensure handsRes.data is an array before filtering
       const usersList = Array.isArray(handsRes.data) ? handsRes.data : [];
       setFarmhands(usersList.filter(u => u.role === 'farmhand'));
       
     } catch (err) {
       console.error("Dashboard Load Error:", err);
-      // If token is invalid or expired, boot to login
-      if (err.response?.status === 401) {
-        handleSignOut();
-      }
+      if (err.response?.status === 401) handleSignOut();
     } finally {
       setLoading(false);
     }
@@ -88,7 +87,10 @@ function UserDash() {
       fetchMessages(activeChat.id);
       interval = setInterval(() => fetchMessages(activeChat.id), 3000);
     }
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      setMessages([]); // Clear chat when closing/switching
+    };
   }, [activeChat]);
 
   useEffect(() => {
@@ -112,6 +114,7 @@ function UserDash() {
     if (!newMessage.trim() || !activeChat) return;
     try {
       const payload = { receiver: activeChat.id, content: newMessage };
+      // POST usually hits the collection endpoint
       const res = await axios.post(`${BASE_URL}/messages/chat/`, payload, getAuthHeaders());
       setMessages(prev => [...prev, res.data]);
       setNewMessage('');
@@ -125,12 +128,14 @@ function UserDash() {
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     try {
+      // PATCH hits the specific update route
       const res = await axios.patch(`${BASE_URL}/auth/user/update/`, formData, getAuthHeaders());
       setUser(res.data);
       setEditModalOpen(false);
       alert("Profile updated! 🌾");
     } catch (err) {
-      alert("Update failed. Please check your connection.");
+      console.error("Update Error:", err.response?.data);
+      alert("Update failed. Check console for details.");
     }
   };
 
@@ -205,7 +210,7 @@ function UserDash() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => { setActiveChat(hand); setMessages([]); }} 
+                      onClick={() => { setActiveChat(hand); }} 
                       className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
                     >
                       <Send size={20} />
