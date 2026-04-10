@@ -2,33 +2,40 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const token = localStorage.getItem('access_token');
-  const userRole = localStorage.getItem('user_role'); // Ensure this is exactly what's in DB
   const location = useLocation();
+  const params = new URLSearchParams(location.search);
 
-  // Debugging logs - Watch these in the Chrome Console!
-  console.log("--- Security Check ---");
-  console.log("Path:", location.pathname);
-  console.log("Role in Storage:", userRole);
-  console.log("Allowed for this Page:", allowedRoles);
+  // 1. Snatch tokens from URL (Google OAuth Flow)
+  const urlAccess = params.get('access');
+  const urlRefresh = params.get('refresh');
+  const urlRole = params.get('role');
 
-  // 1. Authentication Check
+  if (urlAccess) {
+    localStorage.setItem('access_token', urlAccess);
+    localStorage.setItem('refresh_token', urlRefresh || '');
+    localStorage.setItem('user_role', urlRole || '');
+    // Clean URL bar without refreshing
+    window.history.replaceState(null, null, location.pathname);
+  }
+
+  const token = localStorage.getItem('access_token');
+  const userRole = localStorage.getItem('user_role');
+
+  // 2. Authentication Check
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 2. Authorization Check
-  // Note: We trim and lowercase to be extra safe
+  // 3. Authorization Check (Case-insensitive)
   const isAuthorized = allowedRoles.some(role => 
-    role.trim().toLowerCase() === (userRole || "").trim().toLowerCase()
+    role.toLowerCase().trim() === (userRole || "").toLowerCase().trim()
   );
 
   if (!isAuthorized) {
-    console.error("⛔ ACCESS DENIED: User role does not match page requirements.");
+    console.error(`⛔ Unauthorized: Expected ${allowedRoles}, got ${userRole}`);
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // 3. Success
   return children;
 };
 

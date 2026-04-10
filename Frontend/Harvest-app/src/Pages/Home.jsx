@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../Components/Navbar';
+import Footer from '../components/Footer';
 
 function Home() {
   const navigate = useNavigate();
@@ -133,18 +134,8 @@ function Home() {
         </div>
       </div>
       <br/>
-      {/* <div className="bg-emerald-800 text-white py-16 text-center">
-        <div className="max-w-3xl mx-auto px-6">
-          <h2 className="text-5xl font-bold mb-4">Ready to grow smarter?</h2>
-          <p className="text-emerald-200 text-xl mb-10">Join thousands of farmers already using HarvestHand to run a more profitable, stress-free operation.</p>
-          <button 
-            onClick={goLogin}
-            className="px-12 py-6 bg-amber-500 hover:bg-amber-600 text-2xl font-bold rounded-3xl transition-all hover:scale-105"
-          >
-            Get Started for Free 
-          </button>
-        </div>
-      </div> */}
+      <Footer/>
+    
     </>
   );
 }

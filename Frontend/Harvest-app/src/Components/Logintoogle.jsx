@@ -20,39 +20,53 @@ function Logintoogle() {
   });
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
-
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes('access=')) {
-      const params = {};
-      hash.substring(1).split('&').forEach(pair => {
-        const [key, value] = pair.split('=');
-        params[key] = value;
-      });
+    const params = new URLSearchParams(window.location.search);
+    const access = params.get('access');
+    const refresh = params.get('refresh');
+    const role = params.get('role');
 
-      if (params.access) {
-        localStorage.setItem('access_token', params.access);
-        localStorage.setItem('refresh_token', params.refresh || '');
-        localStorage.setItem('user_role', params.role || 'user');
+    if (access) {
+      // 1. Immediate Storage
+      localStorage.setItem('access_token', access);
+      localStorage.setItem('refresh_token', refresh || '');
+      localStorage.setItem('user_role', role || 'user');
 
-        window.history.replaceState(null, null, window.location.pathname);
+      // 2. Clear URL
+      window.history.replaceState(null, null, window.location.pathname);
 
-        const roleRoutes = {
-          admin: '/dashboard/admin',
-          farmhand: '/dashboard/farmhand',
-          farmcorrespondent: '/dashboard/farmcorrespondent',
-          farminstitution: '/dashboard/farminstitution',
-          user: '/dashboard/user'
-        };
+      // 3. Define the routing logic
+      const roleRoutes = {
+        admin: '/dashboard/admin',
+        farmhand: '/dashboard/farmhand',
+        farmcorrespondent: '/dashboard/farmcorrespondent',
+        farminstitution: '/dashboard/farminstitution',
+        user: '/dashboard/user'
+      };
 
-        setMessage("Google login successful! Welcome to the field. 🌾");
-        setTimeout(() => {
-            navigate(roleRoutes[params.role] || '/dashboard/user');
-        }, 1000);
-      }
+      setMessage("Google login successful! Welcome to the field. ");
+
+      // 4. CRITICAL: Pre-fetch or Validate before navigating
+      // This "warms up" the backend session so the dashboard doesn't 401
+      const verifyAndNavigate = async () => {
+        try {
+          await axios.get(`${API_BASE}/auth/user/`, {
+            headers: { Authorization: `Bearer ${access}` }
+          });
+          
+          setTimeout(() => {
+            navigate(roleRoutes[role] || '/dashboard/user');
+          }, 800);
+        } catch (err) {
+          console.error("Token verification failed", err);
+          setMessage("Authentication failed. Please try again.");
+        }
+      };
+
+      verifyAndNavigate();
     }
   }, [navigate]);
-
+  
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -86,7 +100,7 @@ function Logintoogle() {
       localStorage.setItem('refresh_token', res.data.refresh);
       localStorage.setItem('user_role', res.data.user.role);
       
-      setMessage("Welcome back to the field! 🌾");
+      setMessage("Welcome back to the field! ");
       redirectUser(res.data.user.role);
     } catch (err) {
       setMessage(err.response?.data?.detail || "Invalid email or password.");
@@ -113,7 +127,7 @@ function Logintoogle() {
         institution_name: formData.institution_name || ""
       });
 
-      setMessage("Account created successfully! 🎉");
+      setMessage("Account created successfully! ");
       
       if (res.data.access) {
         localStorage.setItem('access_token', res.data.access);
@@ -141,7 +155,7 @@ function Logintoogle() {
       await axios.post(`${API_BASE}/auth/password-reset/`, {
         email: formData.email
       });
-      setMessage("Success! Check your email for reset instructions. 📧");
+      setMessage("Success! Check your email for reset instructions. ");
     } catch (err) {
       setMessage(err.response?.data?.email?.[0] || "Could not find an account with that email.");
     } finally {
