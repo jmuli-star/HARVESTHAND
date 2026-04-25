@@ -94,6 +94,7 @@ function Logintoogle() {
     try {
       const res = await axios.post(`${API_VERSION}/login/`, {
         username: formData.email,
+        email: formData.email,
         password: formData.password,
       });
       
