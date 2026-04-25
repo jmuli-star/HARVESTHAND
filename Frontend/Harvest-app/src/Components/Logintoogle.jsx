@@ -93,7 +93,7 @@ function Logintoogle() {
     setMessage("");
     try {
       const res = await axios.post(`${API_VERSION}/login/`, {
-        email: formData.email,
+        username: formData.email,
         password: formData.password,
       });
       
