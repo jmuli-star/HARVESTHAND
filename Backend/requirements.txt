@@ -11,10 +11,11 @@ PyJWT==2.11.0
 cryptography==46.0.6
 
 # --- Database & Storage ---
-psycopg2==2.9.11
+gunicorn==25.3.0
+python-decouple==3.8
+python-dotenv==1.1.1
 dj-database-url==3.0.1
-cloudinary==1.44.1
-django-cloudinary-storage==0.3.0
+psycopg2==2.9.11
 
 # --- Google Stack (Compatibility Fix) ---
 google-auth>=2.20.0
