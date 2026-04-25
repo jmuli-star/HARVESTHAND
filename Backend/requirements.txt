@@ -1,4 +1,4 @@
-# --- Framework & Auth ---
+
 Django==6.0.3
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
@@ -9,27 +9,19 @@ django-registration==5.2.1
 asgiref==3.11.1
 PyJWT==2.11.0
 cryptography==46.0.6
-
-# --- Database & Storage ---
 gunicorn==25.3.0
 python-decouple==3.8
 python-dotenv==1.1.1
 dj-database-url==3.0.1
 psycopg2==2.9.11
-
-# --- Google Stack (Compatibility Fix) ---
 google-auth>=2.20.0
 google-api-core[grpc]>=2.15.0
 google-ai-generativelanguage>=0.6.0
 google-api-python-client>=2.100.0
 google-genai>=0.1.0
-
-# --- Server & Database ---
 gunicorn==25.3.0
 psycopg2==2.9.11
 python-dotenv==1.1.1
-
-# --- Required Utilities ---
 pydantic==2.13.3
 pydantic_core==2.46.3
 requests==2.32.3
