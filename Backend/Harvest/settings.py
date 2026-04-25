@@ -33,7 +33,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*' , 'https://harvest-m05sz8mux-jmuli-stars-projects.vercel.app']
+ALLOWED_HOSTS = ['*' , 'https://harvest-m05sz8mux-jmuli-stars-projects.vercel.app','https://harvesthand.onrender.com','localhost', '127.0.0.1']
 
 cloudinary.config(
     api_key ='342591382866162',
@@ -271,6 +271,7 @@ SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 CORS_ALLOWED_ORIGINS = [
     "https://harvest-apjw4dx71-jmuli-stars-projects.vercel.app",
+    "https://harvest-qv2iswsu6-jmuli-stars-projects.vercel.app",
     "http://localhost:5173", 
     "http://127.0.0.1:5173",
     "http://localhost:8000",
