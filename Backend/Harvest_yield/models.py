@@ -27,6 +27,29 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
         return self.create_user(email, password, **extra_fields)
+    
+    def get_dashboard_stats(self):
+        """
+        Custom method to aggregate user counts by role.
+        Called by User.objects.get_dashboard_stats() in views.py
+        """
+        from django.db.models import Count
+        
+        # Get counts from the database
+        stats = self.get_queryset().values('role').annotate(total=Count('role'))
+        
+        # Convert queryset results into a dictionary for easy lookup
+        counts_map = {entry['role']: entry['total'] for entry in stats}
+
+        return {
+            'total_users': self.get_queryset().count(),
+            'admin_count': counts_map.get('admin', 0),
+            'farmhand_count': counts_map.get('farmhand', 0),
+            'correspondent_count': counts_map.get('farmcorrespondent', 0),
+            'institution_count': counts_map.get('farminstitution', 0),
+            'standard_user_count': counts_map.get('user', 0),
+        }
+   
 
 class User(AbstractUser):
     ROLES = (

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, MarketplaceItem, MpesaPayment, Order , CartItem
+from .models import Category, MarketplaceItem, MpesaPayment, Order , CartItem , AIInteraction
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -97,3 +97,17 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'payment', 'item', 'quantity', 'status', 'created_at']
+
+class AIInteractionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIInteraction
+        fields = ['id', 'user', 'mode', 'query', 'image', 'response', 'created_at']
+        read_only_fields = ['user', 'response', 'created_at']
+
+    def validate(self, data):
+        # Ensure that if it's chat/market, there's a query. If vision, there's an image.
+        if data.get('mode') in ['chat', 'market'] and not data.get('query'):
+            raise serializers.ValidationError("A query text is required for this mode.")
+        if data.get('mode') == 'vision' and not self.initial_data.get('image'):
+            raise serializers.ValidationError("An image is required for Crop Doctor mode.")
+        return data

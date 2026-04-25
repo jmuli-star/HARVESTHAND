@@ -31,4 +31,7 @@ urlpatterns = [
     # POST: Webhook for Safaricom to send payment results
     # Ensure this URL is identical to the 'CallBackURL' sent in the initiate payload
     path('pay/callback/', views.mpesa_callback, name='mpesa-callback'),
+    
+    #AI ASSISTANT
+    path('ai-assistant/', views.AgriAIAssistantView.as_view(), name='ai-assistant'),
 ]

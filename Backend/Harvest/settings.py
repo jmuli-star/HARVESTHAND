@@ -21,7 +21,8 @@ import cloudinary.uploader
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+ #Api google ai intergration
+GOOGLE_API_KEY = config('GOOGLE_API_KEY', default='')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -229,7 +230,7 @@ REST_FRAMEWORK ={
     ],
 }
 SIMPLE_JWT = {
-   'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60), # Fixed typo: ACCESS
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': True,
@@ -249,6 +250,7 @@ SIMPLE_JWT = {
 MPESA_ENVIRONMENT = 'sandbox'
 MPESA_SHORTCODE_TYPE ='paybill'
 MPESA_INITIATOR_SECURITY_CREDENTIAL = 'Safaricom123!!'
+MPESA_CALLBACK_URL = "https://your-domain.com/api/v1/services/pay/callback/"
 
 MPESA_CONSUMER_KEY = config('MPESA_CONSUMER_KEY')
 MPESA_CONSUMER_SECRET = config('MPESA_CONSUMER_SECRET')
@@ -269,6 +271,8 @@ SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 CORS_ALLOWED_ORIGINS = [
     "https://harvest-apjw4dx71-jmuli-stars-projects.vercel.app",
+    "http://localhost:5173",  # <--- Add this (Vite default)
+    "http://127.0.0.1:5173",
     "http://localhost:8000", # If you still test locally
     "http://127.0.0.1:8000",
 ]

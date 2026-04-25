@@ -3,7 +3,7 @@ from django.utils.html import format_html
 from django.db.models import Sum, F
 from .models import (
     Category, MarketplaceItem, MpesaCalls, 
-    MpesaCallBacks, MpesaPayment, Order, CartItem
+    MpesaCallBacks, MpesaPayment, Order, CartItem , AIInteraction
 )
 
 # --- 1. MARKETPLACE ADMIN ---
@@ -117,3 +117,18 @@ class OrderAdmin(admin.ModelAdmin):
             return f"{obj.payment.first_name} ({obj.payment.phone_number})"
         return "Unknown"
     get_customer.short_description = 'Customer'
+
+# AI intergration
+@admin.register(AIInteraction)
+class AIInteractionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'mode', 'created_at')
+    list_filter = ('mode', 'created_at')
+    search_fields = ('query', 'response', 'user__username')
+    readonly_fields = ('created_at',)
+    
+    # Optional: Display the image thumbnail in admin if it exists
+    def image_preview(self, obj):
+        if obj.image:
+            return f'<img src="{obj.image.url}" width="100" />'
+        return "No image"
+    image_preview.allow_tags = True

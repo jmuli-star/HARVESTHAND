@@ -9,15 +9,16 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
-
+from .ai_utils import AgriBrain
 from .models import (
     Category, MarketplaceItem, MpesaCalls, 
     MpesaCallBacks, MpesaPayment ,CartItem
 )
-from .serializers import CategorySerializer, MarketplaceItemSerializer , CartItemSerializer
+from .serializers import CategorySerializer, MarketplaceItemSerializer , CartItemSerializer , AIInteractionSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -242,3 +243,56 @@ def mpesa_callback(request):
         logger.error(f"Callback processing error: {str(e)}")
         
     return HttpResponse("Callback Received", status=200)
+
+# --- 5. AI ASSISTANT VIEW ---
+class AgriAIAssistantView(APIView):
+    """
+    Handles Chat, Crop Disease Detection (Vision), and Market Research.
+    Saves interactions to the database for customer research analysis.
+    """
+    permission_classes = [IsAuthenticated]
+    # Required to handle both JSON text and image file uploads
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request):
+        # 1. Initialize Serializer with the incoming data
+        # This handles validation (e.g., ensuring an image is present for 'vision' mode)
+        serializer = AIInteractionSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # 2. Extract validated data
+        mode = serializer.validated_data.get('mode')
+        query = serializer.validated_data.get('query')
+        image = request.FILES.get('image') # Files are handled separately from validated_data
+
+        try:
+            # 3. Call the AI Utility (AgriBrain)
+            ai_response = AgriBrain.process_request(
+                mode=mode, 
+                text_query=query, 
+                image_file=image
+            )
+            
+            # 4. Save the interaction to the database
+            # We pass user and response manually since they are read-only in the serializer
+            serializer.save(
+                user=request.user, 
+                response=ai_response,
+                image=image
+            )
+            
+            # 5. Return response to React
+            return Response({
+                "status": "success",
+                "mode": mode,
+                "data": ai_response
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"AI Assistant Error: {str(e)}")
+            return Response({
+                "status": "error",
+                "message": "The AI agronomist is currently offline. Please try again later."
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

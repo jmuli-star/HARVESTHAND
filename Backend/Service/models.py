@@ -153,3 +153,22 @@ class Order(BaseModel):
 
     def __str__(self):
         return f"Order {self.id} for {self.item.name}"
+    
+#AI INTERGRATION
+    
+class AIInteraction(models.Model):
+    MODE_CHOICES = [
+        ('chat', 'Agronomist Chat'),
+        ('vision', 'Crop Doctor'),
+        ('market', 'Market Analyst'),
+    ]
+    
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
+    query = models.TextField(null=True, blank=True)
+    image = models.ImageField(upload_to='ai_queries/', null=True, blank=True)
+    response = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __underline__(self):
+        return f"{self.user.username} - {self.mode} - {self.created_at.date()}"
