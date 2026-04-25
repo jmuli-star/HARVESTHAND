@@ -5,8 +5,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   AlertTriangle, Send, X, ClipboardList, Plus, 
   Sun, Sunrise, CloudSun, LogOut, MessageSquare,
-  Check, Loader2, Settings, 
-  User, Inbox
+  Check, Loader2, Settings, User, Inbox
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -21,6 +20,7 @@ function FarmhandDash() {
   const [tasks, setTasks] = useState([]);
   const [correspondents, setCorrespondents] = useState([]); 
   const [growers, setGrowers] = useState([]);
+  const [farms, setFarms] = useState([]); // Added to fetch available farms
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Farmer");
   const [profile, setProfile] = useState({
@@ -41,11 +41,13 @@ function FarmhandDash() {
   });
   
   const [newBatch, setNewBatch] = useState({
+    farm: '', // Required for your Django ForeignKey
     crop_name: '', 
     variety: '', 
     quantity_kg: '', 
-    destination: '', // Kept for the report message, but NOT sent to Batch API
-    farm: '',        // New: Needed for Django ForeignKey
+    destination: '', // Used for report text, not sent to Batch model
+    planted_date: new Date().toISOString().split('T')[0],
+    harvest_date: new Date().toISOString().split('T')[0],
     recipient: '' 
   });
 
@@ -57,7 +59,7 @@ function FarmhandDash() {
   const handleLogout = useCallback(() => {
     localStorage.clear();
     navigate('/login'); 
-    toast.success("Logged out successfully");
+    toast.success("Session ended");
   }, [navigate]);
 
   const getAuthHeaders = useCallback(() => {
@@ -72,6 +74,7 @@ function FarmhandDash() {
     if (!config) return;
 
     try {
+      // Fetch User Info
       const userRes = await axios.get(`${BASE_URL}/auth/user/`, config); 
       const u = userRes.data;
       setUserName(u.first_name || u.email.split('@')[0]);
@@ -83,15 +86,18 @@ function FarmhandDash() {
       });
       setProfileForm({ ...u });
 
-      const [usersRes, taskRes] = await Promise.all([
+      // Parallel Fetch for Dashboard Data
+      const [usersRes, taskRes, farmsRes] = await Promise.all([
         axios.get(`${BASE_URL}/users/`, config),
-        axios.get(`${BASE_URL}/management/tasks/`, config)
+        axios.get(`${BASE_URL}/management/tasks/`, config),
+        axios.get(`${BASE_URL}/farms/`, config).catch(() => ({ data: [] })) // Fallback if no farms
       ]);
       
       const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
       setCorrespondents(allUsers.filter(u => u.role === 'farmcorrespondent' || u.role === 'admin'));
       setGrowers(allUsers.filter(u => u.role === 'user'));
       setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
+      setFarms(Array.isArray(farmsRes.data) ? farmsRes.data : []);
 
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
@@ -105,10 +111,6 @@ function FarmhandDash() {
     const interval = setInterval(() => fetchData(true), 60000);
     return () => clearInterval(interval);
   }, [fetchData]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   // --- 3. ACTION HANDLERS ---
 
@@ -127,36 +129,39 @@ function FarmhandDash() {
     }
   };
 
+  /**
+   * HARVEST POST LOGIC
+   * Maps exactly to your Django Batch model
+   */
   const handlePostBatch = async (e) => {
     e.preventDefault();
     const config = getAuthHeaders();
     
-    // VALIDATION: Ensure quantity is a number and Farm is selected
-    if (isNaN(parseFloat(newBatch.quantity_kg))) {
-        return toast.error("Quantity must be a valid number.");
-    }
+    // Validate quantity is numeric
+    const qty = parseFloat(newBatch.quantity_kg);
+    if (isNaN(qty)) return toast.error("Please enter a valid weight.");
 
-    const loadId = toast.loading("Logging harvest batch...");
+    const loadId = toast.loading("Recording harvest...");
     
     try {
-      // Step 1: Create the Batch in Django (Sending only valid Model fields)
-      // Note: "farm" must be an ID (integer)
-      const batchData = {
+      // 1. Create Batch (Only valid Django Batch model fields)
+      const batchPayload = {
+        farm: newBatch.farm ? parseInt(newBatch.farm) : null,
         crop_name: newBatch.crop_name,
         variety: newBatch.variety,
-        quantity_kg: parseFloat(newBatch.quantity_kg),
-        // If your backend automatically assigns farm from User, remove the line below.
-        // Otherwise, you MUST provide a farm ID.
-        farm: parseInt(newBatch.farm) 
+        quantity_kg: qty,
+        planted_date: newBatch.planted_date,
+        harvest_date: newBatch.harvest_date,
+        qr_generated: false
       };
 
-      const batchRes = await axios.post(`${BASE_URL}/batches/`, batchData, config);
+      const batchRes = await axios.post(`${BASE_URL}/batches/`, batchPayload, config);
       
-      // Step 2: Create a Report linked to that Batch (Optional logic)
+      // 2. Optional: Generate Field Report linked to the batch
       if (newBatch.recipient) {
         await axios.post(`${BASE_URL}/management/reports/`, {
-          title: `Harvest Log: ${newBatch.crop_name}`,
-          message: `Batch recorded: ${newBatch.quantity_kg}kg of ${newBatch.variety}. Destination: ${newBatch.destination}`,
+          title: `Harvest: ${newBatch.crop_name}`,
+          message: `Logged ${qty}kg of ${newBatch.variety}. Target: ${newBatch.destination}`,
           recipient: parseInt(newBatch.recipient),
           batch: batchRes.data.id,
           category: 'Harvest'
@@ -164,42 +169,46 @@ function FarmhandDash() {
       }
 
       setShowBatchModal(false);
-      toast.success("Harvest Recorded Successfully! 🌾", { id: loadId });
+      toast.success("Harvest batch synced! 🌾", { id: loadId });
+      
+      // Reset Form
+      setNewBatch({
+        farm: '', crop_name: '', variety: '', quantity_kg: '', destination: '',
+        planted_date: new Date().toISOString().split('T')[0],
+        harvest_date: new Date().toISOString().split('T')[0],
+        recipient: ''
+      });
+      
       fetchData(true);
-      
-      // Reset form
-      setNewBatch({ crop_name: '', variety: '', quantity_kg: '', destination: '', farm: '', recipient: '' });
-      
-    } catch (err) { 
-      console.error(err.response?.data);
-      const errorMsg = err.response?.data?.detail || "Check server logs for database errors.";
-      toast.error(`Error: ${errorMsg}`, { id: loadId }); 
+    } catch (err) {
+      console.error("Payload Error:", err.response?.data);
+      toast.error("Database rejection. Check weight/farm fields.", { id: loadId });
     }
   };
 
   const handleSendReport = async (e) => {
     e.preventDefault();
-    const loadId = toast.loading("Dispatching field report...");
+    const loadId = toast.loading("Sending report...");
     try {
       await axios.post(`${BASE_URL}/management/reports/`, {
         ...newReport,
         recipient: parseInt(newReport.recipient)
       }, getAuthHeaders());
       setShowReportModal(false);
-      toast.success("Field Report Dispatched! 📡", { id: loadId });
-    } catch (err) { toast.error("Select a recipient correspondent.", { id: loadId }); }
+      toast.success("Report Sent! 📡", { id: loadId });
+    } catch (err) { toast.error("Selection required.", { id: loadId }); }
   };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    const loadId = toast.loading("Saving Field Identity...");
+    const loadId = toast.loading("Updating records...");
     try {
       await axios.patch(`${BASE_URL}/auth/user/`, profileForm, getAuthHeaders());
       setProfile({ ...profile, ...profileForm });
       setUserName(profileForm.first_name);
       setShowSettingsModal(false);
-      toast.success("Identity Records Updated!", { id: loadId });
-    } catch (err) { toast.error("Update failed.", { id: loadId }); }
+      toast.success("Identity Updated!", { id: loadId });
+    } catch (err) { toast.error("Failed to save.", { id: loadId }); }
   };
 
   const getGreeting = () => {
@@ -334,8 +343,15 @@ function FarmhandDash() {
               <button onClick={() => setShowBatchModal(false)}><X size={24} /></button>
             </div>
             <form onSubmit={handlePostBatch} className="space-y-4">
+              
+              {/* Farm Selection - Critical for Foreign Key */}
+              <select required value={newBatch.farm} onChange={e => setNewBatch({...newBatch, farm: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-emerald-200 outline-none">
+                <option value="">Select Origin Farm</option>
+                {farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+
               <div className="grid grid-cols-2 gap-4">
-                <input required placeholder="Crop Name" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                <input required placeholder="Crop (e.g. Coffee)" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
                 <input required placeholder="Variety" value={newBatch.variety} onChange={e => setNewBatch({...newBatch, variety: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
               </div>
               
@@ -344,9 +360,6 @@ function FarmhandDash() {
                 <input required placeholder="Destination" value={newBatch.destination} onChange={e => setNewBatch({...newBatch, destination: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
               </div>
 
-              {/* NEW: Farm ID input (REQUIRED by your Django model) */}
-              <input required type="number" placeholder="Farm ID (e.g. 1)" value={newBatch.farm} onChange={e => setNewBatch({...newBatch, farm: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-emerald-200 outline-emerald-500" />
-              
               <select required value={newBatch.recipient} onChange={e => setNewBatch({...newBatch, recipient: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100">
                 <option value="">Recipient Correspondent</option>
                 {correspondents.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
