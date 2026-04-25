@@ -50,7 +50,7 @@ function Logintoogle() {
 
       const verifyAndNavigate = async () => {
         try {
-          // Path is relative to the baseURL set in App.jsx
+          
           await axios.get(`${API_VERSION}/auth/user/`);
           
           setTimeout(() => {
@@ -88,29 +88,41 @@ function Logintoogle() {
 
   // --- STANDARD LOGIN ---
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
-    try {
-      const res = await axios.post(`${API_VERSION}/login/`, {
-        username: formData.email,
-        email: formData.email,
-        password: formData.password,
-      });
-      
-      localStorage.setItem('access_token', res.data.access);
-      localStorage.setItem('refresh_token', res.data.refresh);
-      localStorage.setItem('user_role', res.data.user.role);
-      
-      setMessage("Welcome back to the field! 🚜");
-      redirectUser(res.data.user.role);
-    } catch (err) {
-      setMessage(err.response?.data?.detail || "Invalid email or password.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  e.preventDefault();
+  setLoading(true);
+  try {
+    // We send BOTH keys to stop the backend from crashing
+    const payload = {
+      username: formData.email, 
+      email: formData.email,    
+      password: formData.password,
+    };
 
+    const res = await axios.post(`${API_VERSION}/login/`, payload);
+    
+    // SUCCESS
+    localStorage.setItem('access_token', res.data.access);
+    localStorage.setItem('refresh_token', res.data.refresh);
+    localStorage.setItem('user_role', res.data.user.role);
+    
+    // Check if redirect function exists
+    if (typeof redirectUser === 'function') {
+      redirectUser(res.data.user.role);
+    } else {
+      window.location.href = '/farmhand-dash';
+    }
+  } catch (err) {
+    // THIS IS THE MOST IMPORTANT PART:
+    console.error("SERVER ERROR DATA:", err.response?.data);
+    
+    // If it's a 400, it will tell you which field is missing
+    const errorDetail = err.response?.data?.detail || "Check console for field errors";
+    setMessage(errorDetail);
+  } finally {
+    setLoading(false);
+  }
+};
+  
   // --- REGISTRATION ---
   const handleRegister = async (e) => {
     e.preventDefault();
