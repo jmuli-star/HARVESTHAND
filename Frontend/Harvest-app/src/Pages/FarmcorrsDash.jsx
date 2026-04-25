@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import toast, { Toaster } from 'react-hot-toast';
 import { 
   Users, Map, Clock, MessageSquare, Layers, ArrowRight, Circle,
   CheckCircle2, Inbox, UserPlus, Send, Target, Briefcase,
@@ -9,7 +10,6 @@ import {
   Settings, Save, Building2, Loader2
 } from 'lucide-react';
 
-// --- CONFIGURATION ---
 const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = `${API_ROOT}/api/v1`;
 
@@ -28,14 +28,12 @@ function FarmcorrsDash() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userInfo, setUserInfo] = useState({ id: null, name: 'Correspondent', role: 'Staff' });
   
-  // Modals & Feedback
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [feedbackText, setFeedbackText] = useState('');
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
 
-  // Form States
   const [newTask, setNewTask] = useState({ title: '', assigned_to: '', batch: '' });
   const [profileForm, setProfileForm] = useState({
     first_name: '', last_name: '', phone: '', associated_institution: ''
@@ -45,19 +43,17 @@ function FarmcorrsDash() {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
 
-  // --- API Helper ---
   const getAuthHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
   });
 
   const handleLogout = () => {
     localStorage.clear();
+    toast.success("Signed out successfully");
     navigate('/login');
   };
 
-  // --- Data Fetching ---
   const fetchData = async () => {
-    setLoading(true);
     try {
       const config = getAuthHeaders();
       const [taskRes, reportRes, instTaskRes, userRes, batchRes, allUsersRes, currentUserRes] = await Promise.all([
@@ -89,7 +85,6 @@ function FarmcorrsDash() {
         phone: u.phone || '',
         associated_institution: u.associated_institution || ''
       });
-
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
       console.error("Sync error:", err);
@@ -100,20 +95,26 @@ function FarmcorrsDash() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // --- Handlers ---
+  // --- Handlers (Logic of Field Success & Toast Errors) ---
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    const loadId = toast.loading("Updating credentials...");
     try {
-      await axios.patch(`${BASE_URL}/auth/user/update/`, profileForm, getAuthHeaders());
+      await axios.patch(`${BASE_URL}/auth/user/`, profileForm, getAuthHeaders());
+      toast.success("Profile updated! 🌾", { id: loadId });
       setShowSettingsModal(false);
-      fetchData();
-      alert("Management profile updated! 🌾");
-    } catch (err) { alert("Failed to update settings."); }
+      fetchData(); 
+    } catch (err) { 
+      toast.error("Failed to update settings.", { id: loadId }); 
+    }
   };
 
   const handleAssignTask = async (e) => {
     e.preventDefault();
-    if (!newTask.assigned_to) return alert("Please select a recipient.");
+    if (!newTask.assigned_to) return toast.error("Please select a recipient.");
+    
+    const loadId = toast.loading("Deploying task...");
     try {
       await axios.post(`${BASE_URL}/management/tasks/`, {
         title: newTask.title,
@@ -121,26 +122,34 @@ function FarmcorrsDash() {
         batch: newTask.batch ? parseInt(newTask.batch) : null,
         is_complete: false
       }, getAuthHeaders());
+
+      // RULE: Field Success (Clear form and Notify)
       setNewTask({ title: '', assigned_to: '', batch: '' });
-      alert("Task delegated successfully.");
+      toast.success("Task delegated successfully.", { id: loadId });
       fetchData(); 
-    } catch (err) { alert("Error assigning task."); }
+    } catch (err) { 
+      toast.error("Error assigning task. Check fields.", { id: loadId }); 
+    }
   };
 
   const handleSendFeedback = async (e) => {
     e.preventDefault();
-    if (!feedbackText.trim()) return;
+    if (!feedbackText.trim()) return toast.error("Please enter a directive.");
+    
     setIsSendingFeedback(true);
+    const loadId = toast.loading("Sending directive...");
     try {
       await axios.patch(`${BASE_URL}/management/reports/${selectedReport.id}/add_feedback/`, {
         feedback: feedbackText 
       }, getAuthHeaders());
-      alert("Directive delivered to field staff.");
+
+      // RULE: Field Success
+      toast.success("Directive delivered to field staff.", { id: loadId });
       setFeedbackText('');
       setSelectedReport(null);
       fetchData();
     } catch (err) {
-      alert("Failed to send feedback.");
+      toast.error("Failed to send feedback.", { id: loadId });
     } finally {
       setIsSendingFeedback(false);
     }
@@ -162,9 +171,10 @@ function FarmcorrsDash() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 text-stone-900 font-sans">
+      {/* Toast container must be present to show notifications */}
+      <Toaster position="top-right" reverseOrder={false} />
+      
       <div className="max-w-7xl mx-auto px-6 py-10">
-        
-        {/* HEADER */}
         <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner">📋</div>
@@ -212,7 +222,6 @@ function FarmcorrsDash() {
           </div>
         </header>
 
-        {/* TAB NAVIGATION */}
         <div className="flex border-b border-emerald-100 mb-10">
           <button 
             onClick={() => setView('overview')}

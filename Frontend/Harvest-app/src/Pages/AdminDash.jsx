@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast'; // Added Toast
 import { 
   ShieldCheck, Users, Activity, UserPlus, Settings, Lock, 
   AlertTriangle, LogOut, Loader2, Trash2, Globe,
@@ -10,7 +11,6 @@ import {
 const API_ROOT = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const BASE_URL = `${API_ROOT}/api/v1`;
 
-// Mapping prevents Tailwind JIT from purging dynamic classes
 const THEME_MAP = {
   emerald: "bg-emerald-100 text-emerald-600",
   violet: "bg-violet-100 text-violet-600",
@@ -52,53 +52,80 @@ function AdminDash() {
   const handleLogout = useCallback(() => {
     localStorage.clear();
     navigate('/login');
+    toast.success("Logged out successfully");
   }, [navigate]);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const token = localStorage.getItem('access_token');
     if (!token) { navigate('/login'); return; }
+    
     try {
       const config = getAuthHeaders();
       const [statsRes, usersRes] = await Promise.all([
         axios.get(`${BASE_URL}/admin/stats/`, config),
         axios.get(`${BASE_URL}/users/`, config)
       ]);
-      if (statsRes.status === 200) setStats(statsRes.data);
-      if (usersRes.status === 200) setAllUsers(usersRes.data);
+      setStats(statsRes.data);
+      setAllUsers(usersRes.data);
     } catch (err) {
-      if (err.response?.status === 401 || err.response?.status === 403) handleLogout();
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        handleLogout();
+      } else {
+        toast.error("Failed to sync dashboard data.");
+      }
     } finally { setLoading(false); }
   }, [navigate, getAuthHeaders, handleLogout]);
 
   useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
 
+  // FIXED: Logic for user deletion and toast integration
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     setIsDeleting(true);
+    
+    const deletePromise = axios.delete(`${BASE_URL}/users/${userToDelete.id}/`, getAuthHeaders());
+
+    toast.promise(deletePromise, {
+      loading: `Removing ${userToDelete.email}...`,
+      success: () => {
+        setUserToDelete(null);
+        fetchDashboardData(true); // Silent refresh
+        return "User purged from records.";
+      },
+      error: (err) => {
+        const msg = err.response?.data?.detail || "Access denied or user not found.";
+        return `Error: ${msg}`;
+      }
+    });
+
     try {
-      await axios.delete(`${BASE_URL}/admin/stats/${userToDelete.id}/`, getAuthHeaders());
-      setUserToDelete(null);
-      fetchDashboardData();
-    } catch (err) { 
-      alert("Operation Failed: User could not be removed."); 
-    } finally { setIsDeleting(false); }
+      await deletePromise;
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredUsers = allUsers.filter(u => activeTab === 'all' || u.role === activeTab);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 p-6 lg:p-10 font-sans text-stone-900">
+      <Toaster position="top-right" reverseOrder={false} />
+      
+      {/* DELETION MODAL */}
       {userToDelete && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setUserToDelete(null)}></div>
+          <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => !isDeleting && setUserToDelete(null)}></div>
           <div className="relative bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-emerald-100 animate-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
               <div className="h-16 w-16 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center mb-6"><Trash2 size={32} /></div>
               <h2 className="text-xl font-bold text-emerald-900">Confirm Deletion</h2>
               <p className="text-stone-500 text-sm mb-8 font-medium">Erase <span className="text-emerald-800 font-bold">{userToDelete.email}</span>?</p>
               <div className="flex gap-3 w-full">
-                <button onClick={() => setUserToDelete(null)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition">Cancel</button>
-                <button onClick={handleDeleteUser} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg hover:bg-rose-700 transition flex items-center justify-center">
+                <button disabled={isDeleting} onClick={() => setUserToDelete(null)} className="flex-1 py-3 rounded-2xl bg-stone-100 text-stone-600 font-semibold hover:bg-stone-200 transition disabled:opacity-50">Cancel</button>
+                <button disabled={isDeleting} onClick={handleDeleteUser} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg hover:bg-rose-700 transition flex items-center justify-center">
                   {isDeleting ? <Loader2 className="animate-spin" size={20} /> : 'Delete'}
                 </button>
               </div>
@@ -107,6 +134,7 @@ function AdminDash() {
         </div>
       )}
 
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-emerald-950/60 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)}></div>
@@ -127,7 +155,7 @@ function AdminDash() {
       <div className="max-w-7xl mx-auto">
         <header className="mb-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner">🌾</div>
+            <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-4xl shadow-inner shadow-black/20 text-white">🌾</div>
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <div className="flex items-center gap-1.5 bg-white border border-emerald-200 px-3 py-1 rounded-3xl shadow-sm">
@@ -152,7 +180,7 @@ function AdminDash() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8 bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden">
-            <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex gap-2 overflow-x-auto">
+            <div className="p-4 bg-emerald-50 border-b border-emerald-100 flex gap-2 overflow-x-auto scrollbar-hide">
               {['all', 'admin', 'farmhand', 'correspondent', 'institution'].map(t => (
                 <TabBtn key={t} active={activeTab === t} onClick={() => setActiveTab(t)} label={t} />
               ))}
@@ -160,9 +188,9 @@ function AdminDash() {
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest">
-                    <th className="px-8 py-6 text-left">User</th>
-                    <th className="px-8 py-6 text-left">Role</th>
+                  <tr className="bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest text-left">
+                    <th className="px-8 py-6">User</th>
+                    <th className="px-8 py-6">Role</th>
                     <th className="px-8 py-6 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -190,6 +218,7 @@ function AdminDash() {
             </div>
           </div>
 
+          {/* SIDEBAR */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-emerald-800 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10">
@@ -210,6 +239,7 @@ function AdminDash() {
   );
 }
 
+// COMPONENTS
 const StatCard = ({ icon, label, value, color }) => (
   <div className="bg-white rounded-3xl p-6 border border-emerald-100 shadow-sm hover:shadow-md transition-all">
     <div className={`inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-4 ${THEME_MAP[color]}`}>

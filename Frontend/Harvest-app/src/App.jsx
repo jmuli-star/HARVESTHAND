@@ -17,6 +17,7 @@ import RegisterAdmin from './components/RegisterAdmin'
 import ResetPasswordConfirm from './components/PasswordReset'
 import Service from './pages/Service'
 import FarmcorrsDash from './pages/FarmcorrsDash'
+import AiHub from './components/AiHub'
 
 // --- AXIOS INTERCEPTOR CONFIGURATION ---
 // 1. Set the Base URL dynamically
@@ -63,6 +64,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['farmhand']}>
               <FarmhandDash />
+            </ProtectedRoute>
+          } 
+        />
+        {/* AI */}
+        <Route 
+          path="/ai-hub" 
+          element={
+            <ProtectedRoute allowedRoles={['user', 'farmhand', 'farminstitution', 'farmcorrespondent', 'admin']}>
+              <AiHub />
             </ProtectedRoute>
           } 
         />

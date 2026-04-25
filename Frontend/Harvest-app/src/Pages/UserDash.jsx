@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+// --- TOAST IMPORT ---
+import toast, { Toaster } from 'react-hot-toast'; 
 import { 
   User, Mail, ShieldCheck, LogOut, Camera, 
   MessageSquare, ShoppingCart, Send, X, Building, 
-  Smartphone, Clock, Settings, ArrowRight 
+  Smartphone, Clock, Settings, ArrowRight , Sparkles
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// Standardizing the root to ensure no trailing slash conflicts
 const API_ROOT = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, "");
 const BASE_URL = `${API_ROOT}/api/v1`;
 
@@ -56,7 +57,6 @@ function UserDash() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // Removed leading slashes from endpoints to flow with BASE_URL
       const [userRes, handsRes] = await Promise.all([
         axios.get(`${BASE_URL}/auth/user/`, getAuthHeaders()),
         axios.get(`${BASE_URL}/users/`, getAuthHeaders())
@@ -74,7 +74,11 @@ function UserDash() {
       
     } catch (err) {
       console.error("Dashboard Load Error:", err);
-      if (err.response?.status === 401) handleSignOut();
+      if (err.response?.status === 401) {
+        handleSignOut();
+      } else {
+        toast.error("Failed to sync farm data. 🌾"); // Toast added
+      }
     } finally {
       setLoading(false);
     }
@@ -89,7 +93,7 @@ function UserDash() {
     }
     return () => {
       clearInterval(interval);
-      setMessages([]); // Clear chat when closing/switching
+      setMessages([]); 
     };
   }, [activeChat]);
 
@@ -114,34 +118,33 @@ function UserDash() {
     if (!newMessage.trim() || !activeChat) return;
     try {
       const payload = { receiver: activeChat.id, content: newMessage };
-      // POST usually hits the collection endpoint
       const res = await axios.post(`${BASE_URL}/messages/chat/`, payload, getAuthHeaders());
       setMessages(prev => [...prev, res.data]);
       setNewMessage('');
     } catch (err) {
-      console.error("Send Error:", err);
-      alert("Failed to send message.");
+      toast.error("Message failed to send."); // Toast added
     }
   };
 
   // --- Profile & Auth Handlers ---
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    const loadId = toast.loading("Updating your credentials..."); // Loading Toast
     try {
-      // PATCH hits the specific update route
-      const res = await axios.patch(`${BASE_URL}/auth/user/update/`, formData, getAuthHeaders());
+      // CHANGED: Removed /update/ from URL as per your Django error log
+      const res = await axios.patch(`${BASE_URL}/auth/user/`, formData, getAuthHeaders());
       setUser(res.data);
       setEditModalOpen(false);
-      alert("Profile updated! 🌾");
+      toast.success("Profile synchronized! 🌾", { id: loadId }); // Success Toast
     } catch (err) {
-      console.error("Update Error:", err.response?.data);
-      alert("Update failed. Check console for details.");
+      toast.error("Update failed. Check your connection.", { id: loadId }); // Error Toast
     }
   };
 
   const handleSignOut = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
+    toast.success("Signed out successfully."); // Toast added
     navigate('/login');
   };
 
@@ -153,6 +156,9 @@ function UserDash() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 text-stone-900">
+      {/* --- TOAST CONTAINER --- */}
+      <Toaster position="top-right" reverseOrder={false} />
+
       <div className="max-w-6xl mx-auto px-6 py-10">
         
         {/* HEADER SECTION */}
@@ -178,18 +184,16 @@ function UserDash() {
             <button onClick={() => navigate('/services')} className="px-6 py-3 bg-emerald-100 text-emerald-700 rounded-3xl font-black text-xs uppercase tracking-widest hover:bg-emerald-200 transition flex items-center gap-2">
                <ShoppingCart size={18} /> Marketplace
             </button>
+            {/* CHANGED: Combined Button */}
             <button onClick={() => setEditModalOpen(true)} className="px-6 py-3 bg-white border border-emerald-200 rounded-3xl font-bold text-xs uppercase tracking-widest text-emerald-700 hover:bg-emerald-50 transition shadow-sm flex items-center gap-2">
-              <Settings size={18} /> Settings
-            </button>
-            <button onClick={handleSignOut} className="px-6 py-3 bg-white text-rose-600 border border-rose-200 rounded-3xl font-bold text-xs uppercase tracking-widest hover:bg-rose-50 transition shadow-sm flex items-center gap-2">
-              <LogOut size={18} /> Logout
+              <Settings size={18} /> Manage Account
             </button>
           </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* LEFT: FARMHAND DIRECTORY */}
+          {/* LEFT: FARMHAND DIRECTORY (Restored) */}
           <div className="lg:col-span-2 space-y-8">
             <section>
               <h2 className="text-2xl font-black text-emerald-900 flex items-center gap-3 mb-6">
@@ -252,7 +256,7 @@ function UserDash() {
                   <div><p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Email</p><p className="font-bold text-sm text-stone-800">{user.email}</p></div>
                 </div>
                 <div className="flex gap-4">
-                  <Smartphone size={20} className="text-emerald-500" />
+                  <span className="text-emerald-500"><Smartphone size={20} /></span>
                   <div><p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Phone</p><p className="font-bold text-sm text-stone-800">{user.phone || 'Not provided'}</p></div>
                 </div>
                 <div className="flex gap-4">
@@ -318,32 +322,80 @@ function UserDash() {
         </div>
       )}
 
-      {/* --- SETTINGS MODAL --- */}
+      {/* --- COMBINED MANAGEMENT MODAL --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-emerald-950/60 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative">
-            <button onClick={() => setEditModalOpen(false)} className="absolute top-8 right-8 text-stone-400 hover:text-stone-900 transition"><X size={24} /></button>
-            <h2 className="text-2xl font-black text-emerald-900 mb-8 uppercase tracking-tighter">Account Settings</h2>
-            <form onSubmit={handleProfileUpdate} className="space-y-6">
-              {[
-                { label: 'First Name', key: 'first_name' },
-                { label: 'Last Name', key: 'last_name' },
-                { label: 'Phone Contact', key: 'phone' }
-              ].map(field => (
-                <div key={field.key}>
-                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">{field.label}</label>
-                  <input 
-                    value={formData[field.key]} 
-                    onChange={e => setFormData({...formData, [field.key]: e.target.value})} 
-                    className="w-full px-5 py-4 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold focus:border-emerald-300 focus:bg-white outline-none transition-all mt-1" 
-                  />
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+            <div className="p-8 pb-0 flex justify-between items-center">
+              <h2 className="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Account Management</h2>
+              <button onClick={() => setEditModalOpen(false)} className="text-stone-400 hover:text-stone-900 transition">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 pt-6 space-y-8">
+              <section>
+                <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-4">Update Profile</h3>
+                <form onSubmit={handleProfileUpdate} className="space-y-4">
+                  {[
+                    { label: 'First Name', key: 'first_name' },
+                    { label: 'Last Name', key: 'last_name' },
+                    { label: 'Phone Contact', key: 'phone' }
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">{field.label}</label>
+                      <input 
+                        value={formData[field.key]} 
+                        onChange={e => setFormData({...formData, [field.key]: e.target.value})} 
+                        className="w-full px-5 py-3.5 bg-stone-50 border border-stone-100 rounded-2xl text-sm font-bold focus:border-emerald-300 focus:bg-white outline-none transition-all mt-1" 
+                      />
+                    </div>
+                  ))}
+                  <button type="submit" className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-md transition-all active:scale-95">
+                    Save Changes
+                  </button>
+                </form>
+              </section>
+
+              <div className="border-t border-stone-100"></div>
+
+              <section>
+                <h3 className="text-[10px] font-black text-rose-600 uppercase tracking-[0.2em] mb-4">Account Actions</h3>
+                <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-rose-900">End Session</p>
+                    <p className="text-[10px] text-rose-600 font-medium">Log out of your grower account.</p>
+                  </div>
+                  <button 
+                    onClick={handleSignOut} 
+                    className="p-3 bg-white text-rose-600 rounded-xl border border-rose-200 hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                  >
+                    <LogOut size={20} />
+                  </button>
                 </div>
-              ))}
-              <button type="submit" className="w-full py-5 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-95">Update Profile</button>
-            </form>
+              </section>
+            </div>
           </div>
         </div>
       )}
+
+      {/* --- AI ASSISTANT --- */}
+      <div className="fixed bottom-8 left-8 z-[60] flex flex-col items-start gap-3 group">
+        <div className="bg-white px-5 py-3 rounded-2xl shadow-2xl border border-emerald-100 animate-bounce transition-all">
+          <p className="text-[10px] font-black text-emerald-800 flex items-center gap-2 uppercase tracking-widest">Need Farm Advice?</p>
+          <div className="absolute -bottom-1 left-6 w-3 h-3 bg-white border-r border-b border-emerald-50 rotate-45"></div>
+        </div>
+        <button onClick={() => navigate('/ai-hub')} className="bg-emerald-900 text-white p-5 rounded-[2rem] shadow-2xl hover:bg-black hover:scale-110 active:scale-95 transition-all duration-300 flex items-center gap-3">
+          <div className="relative">
+            <Sparkles size={24} className="text-amber-400" />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+            </span>
+          </div>
+          <span className="font-black text-xs uppercase tracking-widest pr-2">Ask Harvest AI</span>
+        </button>
+      </div>
     </div>
   );
 }
