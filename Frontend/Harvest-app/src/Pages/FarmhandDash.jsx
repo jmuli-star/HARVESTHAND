@@ -5,7 +5,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   AlertTriangle, Send, X, ClipboardList, Plus, 
   Sun, Sunrise, CloudSun, LogOut, MessageSquare,
-  Check, Loader2, Settings, User, Inbox
+  Check, Loader2, Settings, User, Inbox, Calendar
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -20,7 +20,6 @@ function FarmhandDash() {
   const [tasks, setTasks] = useState([]);
   const [correspondents, setCorrespondents] = useState([]); 
   const [growers, setGrowers] = useState([]);
-  const [farms, setFarms] = useState([]); // Added to fetch available farms
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("Farmer");
   const [profile, setProfile] = useState({
@@ -41,13 +40,12 @@ function FarmhandDash() {
   });
   
   const [newBatch, setNewBatch] = useState({
-    farm: '', // Required for your Django ForeignKey
     crop_name: '', 
     variety: '', 
     quantity_kg: '', 
-    destination: '', // Used for report text, not sent to Batch model
-    planted_date: new Date().toISOString().split('T')[0],
-    harvest_date: new Date().toISOString().split('T')[0],
+    destination: '', 
+    planted_date: '', // Updated
+    harvest_date: new Date().toISOString().split('T')[0], // Updated
     recipient: '' 
   });
 
@@ -55,7 +53,7 @@ function FarmhandDash() {
     first_name: '', last_name: '', phone: '', location: '', farm_name: '', crops_managed: ''
   });
 
-  // --- 2. CORE LOGIC (Auth & Fetch) ---
+  // --- 2. CORE LOGIC ---
   const handleLogout = useCallback(() => {
     localStorage.clear();
     navigate('/login'); 
@@ -74,7 +72,6 @@ function FarmhandDash() {
     if (!config) return;
 
     try {
-      // Fetch User Info
       const userRes = await axios.get(`${BASE_URL}/auth/user/`, config); 
       const u = userRes.data;
       setUserName(u.first_name || u.email.split('@')[0]);
@@ -86,18 +83,15 @@ function FarmhandDash() {
       });
       setProfileForm({ ...u });
 
-      // Parallel Fetch for Dashboard Data
-      const [usersRes, taskRes, farmsRes] = await Promise.all([
+      const [usersRes, taskRes] = await Promise.all([
         axios.get(`${BASE_URL}/users/`, config),
-        axios.get(`${BASE_URL}/management/tasks/`, config),
-        axios.get(`${BASE_URL}/farms/`, config).catch(() => ({ data: [] })) // Fallback if no farms
+        axios.get(`${BASE_URL}/management/tasks/`, config)
       ]);
       
       const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
       setCorrespondents(allUsers.filter(u => u.role === 'farmcorrespondent' || u.role === 'admin'));
       setGrowers(allUsers.filter(u => u.role === 'user'));
       setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
-      setFarms(Array.isArray(farmsRes.data) ? farmsRes.data : []);
 
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
@@ -129,39 +123,31 @@ function FarmhandDash() {
     }
   };
 
-  /**
-   * HARVEST POST LOGIC
-   * Maps exactly to your Django Batch model
-   */
   const handlePostBatch = async (e) => {
     e.preventDefault();
     const config = getAuthHeaders();
-    
-    // Validate quantity is numeric
     const qty = parseFloat(newBatch.quantity_kg);
     if (isNaN(qty)) return toast.error("Please enter a valid weight.");
 
     const loadId = toast.loading("Recording harvest...");
     
     try {
-      // 1. Create Batch (Only valid Django Batch model fields)
+      // Create Batch (Mapping to your specific Django fields)
       const batchPayload = {
-        farm: newBatch.farm ? parseInt(newBatch.farm) : null,
         crop_name: newBatch.crop_name,
         variety: newBatch.variety,
         quantity_kg: qty,
-        planted_date: newBatch.planted_date,
-        harvest_date: newBatch.harvest_date,
+        planted_date: newBatch.planted_date || null,
+        harvest_date: newBatch.harvest_date || null,
         qr_generated: false
       };
 
       const batchRes = await axios.post(`${BASE_URL}/batches/`, batchPayload, config);
       
-      // 2. Optional: Generate Field Report linked to the batch
       if (newBatch.recipient) {
         await axios.post(`${BASE_URL}/management/reports/`, {
-          title: `Harvest: ${newBatch.crop_name}`,
-          message: `Logged ${qty}kg of ${newBatch.variety}. Target: ${newBatch.destination}`,
+          title: `Harvest Entry: ${newBatch.crop_name}`,
+          message: `Logged ${qty}kg of ${newBatch.variety}. Destination: ${newBatch.destination}`,
           recipient: parseInt(newBatch.recipient),
           batch: batchRes.data.id,
           category: 'Harvest'
@@ -170,19 +156,15 @@ function FarmhandDash() {
 
       setShowBatchModal(false);
       toast.success("Harvest batch synced! 🌾", { id: loadId });
-      
-      // Reset Form
       setNewBatch({
-        farm: '', crop_name: '', variety: '', quantity_kg: '', destination: '',
-        planted_date: new Date().toISOString().split('T')[0],
-        harvest_date: new Date().toISOString().split('T')[0],
+        crop_name: '', variety: '', quantity_kg: '', destination: '',
+        planted_date: '', harvest_date: new Date().toISOString().split('T')[0],
         recipient: ''
       });
-      
       fetchData(true);
     } catch (err) {
       console.error("Payload Error:", err.response?.data);
-      toast.error("Database rejection. Check weight/farm fields.", { id: loadId });
+      toast.error("Database rejection. Check weight/date formats.", { id: loadId });
     }
   };
 
@@ -280,7 +262,7 @@ function FarmhandDash() {
             </div>
           </div>
 
-          {/* TASKS & NETWORK */}
+          {/* NETWORK & TASKS */}
           <div className="lg:col-span-8 grid md:grid-cols-2 gap-8">
             <section>
               <h2 className="uppercase text-[10px] font-black tracking-widest text-emerald-700/50 flex items-center gap-2 mb-6"><Inbox size={14} /> Growers Network</h2>
@@ -308,7 +290,7 @@ function FarmhandDash() {
         </div>
       </div>
 
-      {/* CHAT INTERFACE */}
+      {/* CHAT UI */}
       {activeChat && (
         <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-6">
           <div className="bg-white w-full max-w-md h-[70vh] rounded-[3rem] flex flex-col shadow-2xl overflow-hidden">
@@ -316,43 +298,48 @@ function FarmhandDash() {
               <h2 className="font-black text-xl tracking-tighter">Chat: {activeChat.email.split('@')[0]}</h2>
               <button onClick={() => setActiveChat(null)} className="p-2 bg-stone-200 rounded-full"><X size={18}/></button>
             </div>
-            <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-stone-50/50">
+            <div className="flex-1 p-6 overflow-y-auto space-y-4">
               {messages.map(m => (
                 <div key={m.id} className={`flex ${m.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] p-4 rounded-2xl font-bold text-sm ${m.sender === 'me' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-white border text-stone-800'}`}>
+                  <div className={`max-w-[80%] p-4 rounded-2xl font-bold text-sm ${m.sender === 'me' ? 'bg-emerald-600 text-white' : 'bg-stone-100'}`}>
                     {m.content}
                   </div>
                 </div>
               ))}
               <div ref={chatEndRef} />
             </div>
-            <form onSubmit={handleSendMessage} className="p-6 border-t bg-white flex gap-2">
-              <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message..." className="flex-1 bg-stone-50 border rounded-2xl px-6 font-bold outline-none focus:ring-2 focus:ring-emerald-500" />
-              <button type="submit" className="p-4 bg-emerald-600 text-white rounded-2xl shadow-xl active:scale-95"><Send size={18} /></button>
+            <form onSubmit={handleSendMessage} className="p-6 border-t flex gap-2">
+              <input value={messageText} onChange={e => setMessageText(e.target.value)} placeholder="Type a message..." className="flex-1 bg-stone-50 border rounded-2xl px-6 outline-none" />
+              <button type="submit" className="p-4 bg-emerald-600 text-white rounded-2xl"><Send size={18} /></button>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL: LOG HARVEST */}
+      {/* MODAL: LOG HARVEST (Updated with dates) */}
       {showBatchModal && (
         <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-3xl font-black tracking-tighter">Log Harvest</h2>
               <button onClick={() => setShowBatchModal(false)}><X size={24} /></button>
             </div>
             <form onSubmit={handlePostBatch} className="space-y-4">
               
-              {/* Farm Selection - Critical for Foreign Key */}
-              <select required value={newBatch.farm} onChange={e => setNewBatch({...newBatch, farm: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-emerald-200 outline-none">
-                <option value="">Select Origin Farm</option>
-                {farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+              <div className="grid grid-cols-2 gap-4">
+                <input required placeholder="Crop Name" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                <input required placeholder="Variety" value={newBatch.variety} onChange={e => setNewBatch({...newBatch, variety: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <input required placeholder="Crop (e.g. Coffee)" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
-                <input required placeholder="Variety" value={newBatch.variety} onChange={e => setNewBatch({...newBatch, variety: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                <div>
+                  <label className="text-[9px] font-black uppercase text-stone-400 ml-2 mb-1 block">Date Planted</label>
+                  <input type="date" value={newBatch.planted_date} onChange={e => setNewBatch({...newBatch, planted_date: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase text-stone-400 ml-2 mb-1 block">Date Harvested</label>
+                  <input required type="date" value={newBatch.harvest_date} onChange={e => setNewBatch({...newBatch, harvest_date: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
@@ -380,15 +367,13 @@ function FarmhandDash() {
               <button onClick={() => setShowReportModal(false)}><X size={24} /></button>
             </div>
             <form onSubmit={handleSendReport} className="space-y-4">
-              <input required placeholder="Report Title" value={newReport.title} onChange={e => setNewReport({...newReport, title: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 focus:ring-2 focus:ring-rose-500 outline-none" />
+              <input required placeholder="Report Title" value={newReport.title} onChange={e => setNewReport({...newReport, title: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
               <textarea required placeholder="Observations..." rows="4" value={newReport.message} onChange={e => setNewReport({...newReport, message: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100 resize-none" />
               <select required value={newReport.recipient} onChange={e => setNewReport({...newReport, recipient: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100">
                 <option value="">Recipient Correspondent</option>
                 {correspondents.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
               </select>
-              <button type="submit" className="w-full py-5 bg-rose-600 text-white font-black rounded-2xl shadow-xl mt-4 flex items-center justify-center gap-2">
-                <Send size={18} /> Dispatch Report
-              </button>
+              <button type="submit" className="w-full py-5 bg-rose-600 text-white font-black rounded-2xl shadow-xl mt-4 flex items-center justify-center gap-2"><Send size={18} /> Dispatch Report</button>
             </form>
           </div>
         </div>
@@ -397,7 +382,7 @@ function FarmhandDash() {
       {/* MODAL: SETTINGS */}
       {showSettingsModal && (
         <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-10 shadow-2xl">
              <div className="flex justify-between items-center mb-8">
               <h2 className="text-3xl font-black tracking-tighter">Settings</h2>
               <button onClick={() => setShowSettingsModal(false)}><X size={24} /></button>
