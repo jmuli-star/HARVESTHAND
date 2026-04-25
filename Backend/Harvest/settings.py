@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'cloudinary_storage',
     'django.contrib.staticfiles',
+    'corsheaders',
     'django.contrib.sites',
     'allauth',
     'allauth.account',
@@ -67,7 +68,6 @@ INSTALLED_APPS = [
     'Messages',
     'Accounts',
     'rest_framework',
-    'corsheaders',
     'cloudinary',
    
 ]
@@ -271,10 +271,22 @@ SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 CORS_ALLOWED_ORIGINS = [
     "https://harvest-apjw4dx71-jmuli-stars-projects.vercel.app",
-    "http://localhost:5173",  # <--- Add this (Vite default)
+    "http://localhost:5173", 
     "http://127.0.0.1:5173",
-    "http://localhost:8000", # If you still test locally
+    "http://localhost:8000",
     "http://127.0.0.1:8000",
+]
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "https://harvest-qv2iswsu6-jmuli-stars-projects.vercel.app",
+    "https://harvesthand.onrender.com",
 ]
 CORS_ALLOW_CREDENTIALS = True
 
