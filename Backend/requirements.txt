@@ -13,7 +13,6 @@ psycopg2==2.9.11
 dj-database-url==3.0.1
 cloudinary==1.44.1
 django-cloudinary-storage==0.3.0
-google-api-core[grpc]==2.30.3
 google-ai-generativelanguage==0.6.15
 google-api-python-client==2.194.0
 google-auth==2.49.1
