@@ -126,20 +126,35 @@ class AdminDashboardStatsView(APIView):
         return Response(serializer.data)
     
 class CustomTokenObtainPairView(TokenObtainPairView):
-   
     serializer_class = MyTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+        # 1. Let SimpleJWT handle the 401/400 validation first
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception as e:
+            # If SimpleJWT fails, it returns the error automatically
+            return Response({"detail": str(e)}, status=400)
+
         if response.status_code == 200:
             from django.contrib.auth import get_user_model
-            user = get_user_model().objects.get(email=request.data['email'])
-            response.data['user'] = {
-                'id': user.id,
-                'email': user.email,
-                'role': user.role,
-            }
+            User = get_user_model()
+            
+            # 2. Use .get() safely
+            email_input = request.data.get('email') or request.data.get('username')
+            try:
+                user = User.objects.get(email=email_input)
+                response.data['user'] = {
+                    'id': user.id,
+                    'email': user.email,
+                    'role': getattr(user, 'role', 'user'),
+                }
+            except User.DoesNotExist:
+                return Response({"detail": "User record found in auth but not in database."}, status=404)
+        
         return response
+    
+
     
 class RegisterView(APIView):
     permission_classes = [AllowAny]
