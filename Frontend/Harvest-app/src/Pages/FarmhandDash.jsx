@@ -5,8 +5,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { 
   AlertTriangle, Send, X, ClipboardList, Plus, 
   Sun, Sunrise, CloudSun, LogOut, MessageSquare,
-  Check, Loader2, Settings, RefreshCcw,
-  MapPin, Sprout, User, Inbox, Calendar
+  Check, Loader2, Settings, 
+  User, Inbox
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -41,9 +41,11 @@ function FarmhandDash() {
   });
   
   const [newBatch, setNewBatch] = useState({
-    crop_name: '', variety: '', quantity_kg: '', destination: '',
-    planted_date: new Date().toISOString().split('T')[0],
-    harvest_date: new Date().toISOString().split('T')[0],
+    crop_name: '', 
+    variety: '', 
+    quantity_kg: '', 
+    destination: '', // Kept for the report message, but NOT sent to Batch API
+    farm: '',        // New: Needed for Django ForeignKey
     recipient: '' 
   });
 
@@ -79,7 +81,6 @@ function FarmhandDash() {
         farm_name: u.farm_name || "Unassigned",
         crops_managed: u.crops_managed || "General"
       });
-      // RECOMMENDED CHANGE: Keep Form and Profile state in sync
       setProfileForm({ ...u });
 
       const [usersRes, taskRes] = await Promise.all([
@@ -111,13 +112,6 @@ function FarmhandDash() {
 
   // --- 3. ACTION HANDLERS ---
 
-  // Messaging Logic
-  const handleStartChat = (user) => {
-    setActiveChat(user);
-    setMessages([]); // Fetch history logic would go here
-    toast.success(`Encrypted channel with ${user.email.split('@')[0]}`);
-  };
-
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!messageText.trim()) return;
@@ -133,33 +127,56 @@ function FarmhandDash() {
     }
   };
 
-  // Harvest Logic
   const handlePostBatch = async (e) => {
     e.preventDefault();
     const config = getAuthHeaders();
+    
+    // VALIDATION: Ensure quantity is a number and Farm is selected
+    if (isNaN(parseFloat(newBatch.quantity_kg))) {
+        return toast.error("Quantity must be a valid number.");
+    }
+
     const loadId = toast.loading("Logging harvest batch...");
+    
     try {
-      const batchRes = await axios.post(`${BASE_URL}/batches/`, {
-        ...newBatch,
-        quantity_kg: parseFloat(newBatch.quantity_kg)
-      }, config);
+      // Step 1: Create the Batch in Django (Sending only valid Model fields)
+      // Note: "farm" must be an ID (integer)
+      const batchData = {
+        crop_name: newBatch.crop_name,
+        variety: newBatch.variety,
+        quantity_kg: parseFloat(newBatch.quantity_kg),
+        // If your backend automatically assigns farm from User, remove the line below.
+        // Otherwise, you MUST provide a farm ID.
+        farm: parseInt(newBatch.farm) 
+      };
+
+      const batchRes = await axios.post(`${BASE_URL}/batches/`, batchData, config);
       
+      // Step 2: Create a Report linked to that Batch (Optional logic)
       if (newBatch.recipient) {
         await axios.post(`${BASE_URL}/management/reports/`, {
           title: `Harvest Log: ${newBatch.crop_name}`,
-          message: `Batch recorded: ${newBatch.quantity_kg}kg of ${newBatch.variety}. Location: ${newBatch.destination}`,
+          message: `Batch recorded: ${newBatch.quantity_kg}kg of ${newBatch.variety}. Destination: ${newBatch.destination}`,
           recipient: parseInt(newBatch.recipient),
           batch: batchRes.data.id,
           category: 'Harvest'
         }, config);
       }
+
       setShowBatchModal(false);
-      toast.success("Harvest Batch & Report Dispatched! 🌾", { id: loadId });
+      toast.success("Harvest Recorded Successfully! 🌾", { id: loadId });
       fetchData(true);
-    } catch (err) { toast.error("Check weight and variety formats.", { id: loadId }); }
+      
+      // Reset form
+      setNewBatch({ crop_name: '', variety: '', quantity_kg: '', destination: '', farm: '', recipient: '' });
+      
+    } catch (err) { 
+      console.error(err.response?.data);
+      const errorMsg = err.response?.data?.detail || "Check server logs for database errors.";
+      toast.error(`Error: ${errorMsg}`, { id: loadId }); 
+    }
   };
 
-  // Report Logic
   const handleSendReport = async (e) => {
     e.preventDefault();
     const loadId = toast.loading("Dispatching field report...");
@@ -173,7 +190,6 @@ function FarmhandDash() {
     } catch (err) { toast.error("Select a recipient correspondent.", { id: loadId }); }
   };
 
-  // Identity Logic
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     const loadId = toast.loading("Saving Field Identity...");
@@ -186,7 +202,6 @@ function FarmhandDash() {
     } catch (err) { toast.error("Update failed.", { id: loadId }); }
   };
 
-  // --- 4. UI COMPONENTS ---
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: "Good Morning", icon: <Sunrise className="text-amber-500" size={18} /> };
@@ -264,7 +279,7 @@ function FarmhandDash() {
                 {growers.map(g => (
                   <div key={g.id} className="p-6 flex items-center justify-between hover:bg-emerald-50/30 transition-colors">
                     <span className="font-black text-stone-800 text-sm">{g.email.split('@')[0]}</span>
-                    <button onClick={() => handleStartChat(g)} className="p-2 bg-stone-900 text-white rounded-lg transition-colors active:scale-90"><MessageSquare size={14} /></button>
+                    <button onClick={() => { setActiveChat(g); setMessages([]); }} className="p-2 bg-stone-900 text-white rounded-lg transition-colors active:scale-90"><MessageSquare size={14} /></button>
                   </div>
                 ))}
               </div>
@@ -320,17 +335,23 @@ function FarmhandDash() {
             </div>
             <form onSubmit={handlePostBatch} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <input required placeholder="Crop" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                <input required placeholder="Crop Name" value={newBatch.crop_name} onChange={e => setNewBatch({...newBatch, crop_name: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
                 <input required placeholder="Variety" value={newBatch.variety} onChange={e => setNewBatch({...newBatch, variety: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
               </div>
+              
               <div className="grid grid-cols-2 gap-4">
-                <input required type="number" placeholder="Weight KG" value={newBatch.quantity_kg} onChange={e => setNewBatch({...newBatch, quantity_kg: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
+                <input required type="number" step="0.01" placeholder="Weight (KG)" value={newBatch.quantity_kg} onChange={e => setNewBatch({...newBatch, quantity_kg: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
                 <input required placeholder="Destination" value={newBatch.destination} onChange={e => setNewBatch({...newBatch, destination: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100" />
               </div>
+
+              {/* NEW: Farm ID input (REQUIRED by your Django model) */}
+              <input required type="number" placeholder="Farm ID (e.g. 1)" value={newBatch.farm} onChange={e => setNewBatch({...newBatch, farm: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-emerald-200 outline-emerald-500" />
+              
               <select required value={newBatch.recipient} onChange={e => setNewBatch({...newBatch, recipient: e.target.value})} className="w-full px-6 py-4 bg-stone-50 rounded-2xl font-bold border border-stone-100">
                 <option value="">Recipient Correspondent</option>
                 {correspondents.map(c => <option key={c.id} value={c.id}>{c.email}</option>)}
               </select>
+
               <button type="submit" className="w-full py-5 bg-emerald-600 text-white font-black rounded-2xl shadow-xl mt-4">Dispatch Harvest Batch</button>
             </form>
           </div>
