@@ -16,12 +16,17 @@ Including another URLconf
 """
 
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenRefreshView
 from Harvest_yield.views import RegisterView, CustomTokenObtainPairView , social_token_exchange
 from allauth.socialaccount.providers.google.views import oauth2_login
 
+def health_check(request):
+    return JsonResponse({"status": "active", "message": "Harvest API is online"})
+
 urlpatterns = [
+    path('', health_check),
     path('admin/', admin.site.urls),
     path('accounts/profile/', social_token_exchange),
     path('accounts/', include('allauth.urls')),
@@ -31,6 +36,6 @@ urlpatterns = [
     path('api/v1/messages/', include('Messages.urls')),
     path('api/v1/services/', include('Service.urls')),
     path('api/register/', RegisterView.as_view(), name='register'),
-    path('api/login/', CustomTokenObtainPairView.as_view(), name='login'),
+    path('api/v1/login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh') 
 ]

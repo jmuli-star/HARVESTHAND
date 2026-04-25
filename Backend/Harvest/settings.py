@@ -268,14 +268,17 @@ SOCIALACCOUNT_ADAPTER = 'Harvest_yield.adapter.MySocialAccountAdapter'
 
 
 # Also add these to ensure CORS and Cookies behave with the frontend
-
 CORS_ALLOWED_ORIGINS = [
     "https://harvest-apjw4dx71-jmuli-stars-projects.vercel.app",
     "https://harvest-qv2iswsu6-jmuli-stars-projects.vercel.app",
     "http://localhost:5173", 
+    "http://localhost:3000", 
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://harvest-.*\.vercel\.app$",
 ]
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -290,6 +293,16 @@ CSRF_TRUSTED_ORIGINS = [
     "https://harvesthand.onrender.com",
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
